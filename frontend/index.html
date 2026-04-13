@@ -1,151 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PTE Reading Practice</title>
-  <link rel="stylesheet" href="/static/style.css" />
-</head>
-<body>
-
-<header>
-  <div class="header-inner">
-    <div class="logo">
-      <span class="logo-icon">📖</span>
-      <span class="logo-text">PTE Reading <span class="logo-sub">Practice</span></span>
-    </div>
-    <nav>
-      <button class="nav-btn active" id="nav-practice" onclick="showTab('practice')">Practice</button>
-      <button class="nav-btn" id="nav-progress" onclick="showTab('progress')">Progress</button>
-    </nav>
-  </div>
-</header>
-
-<main>
-
-  <!-- ===== PRACTICE TAB ===== -->
-  <section id="tab-practice">
-
-    <!-- Generate panel -->
-    <div id="panel-generate" class="card center-card">
-      <h2>Start a Practice Session</h2>
-      <p class="subtitle">AI will generate an academic passage with reading questions matching the PTE Academic exam format.</p>
-
-      <div class="generate-form">
-        <label for="topic-input">Topic <span class="optional">(optional)</span></label>
-        <input
-          id="topic-input"
-          type="text"
-          placeholder="e.g. Climate Change, Artificial Intelligence, Ancient Rome..."
-          maxlength="80"
-        />
-        <button class="btn-primary" id="btn-generate" onclick="generateSession()">
-          Generate Practice Session
-        </button>
-      </div>
-
-      <div id="generate-error" class="error-msg hidden"></div>
-    </div>
-
-    <!-- Loading panel -->
-    <div id="panel-loading" class="card center-card hidden">
-      <div class="spinner"></div>
-      <p class="loading-text">Generating your practice session…</p>
-      <p class="loading-sub">Claude is crafting a passage and questions for you.</p>
-    </div>
-
-    <!-- Questions panel -->
-    <div id="panel-questions" class="hidden">
-
-      <div class="session-header card">
-        <div class="session-meta">
-          <span class="topic-badge" id="session-topic"></span>
-          <span class="session-info">3 questions · PTE Academic Format</span>
-        </div>
-        <button class="btn-outline btn-sm" onclick="resetSession()">New Session</button>
-      </div>
-
-      <div class="passage-card card">
-        <div class="passage-label">Reading Passage</div>
-        <div id="passage-text" class="passage-text"></div>
-      </div>
-
-      <div id="questions-container"></div>
-
-      <div class="submit-bar card">
-        <div id="submit-hint" class="submit-hint">Answer all questions before submitting.</div>
-        <button class="btn-primary" id="btn-submit" onclick="submitAnswers()" disabled>
-          Submit Answers
-        </button>
-      </div>
-
-    </div>
-
-    <!-- Results panel -->
-    <div id="panel-results" class="hidden">
-
-      <div class="results-header card">
-        <div class="score-circle" id="score-circle">
-          <span class="score-pct" id="score-pct">0%</span>
-          <span class="score-label">Score</span>
-        </div>
-        <div class="score-details">
-          <div class="score-topic" id="result-topic"></div>
-          <div class="score-breakdown" id="score-breakdown"></div>
-        </div>
-        <button class="btn-primary" onclick="resetSession()">Practice Again</button>
-      </div>
-
-      <div id="results-container"></div>
-
-    </div>
-
-  </section>
-
-  <!-- ===== PROGRESS TAB ===== -->
-  <section id="tab-progress" class="hidden">
-
-    <div class="card">
-      <div class="progress-header">
-        <h2>Your Progress</h2>
-        <button class="btn-outline btn-sm" onclick="loadProgress()">Refresh</button>
-      </div>
-
-      <div id="progress-stats" class="stats-row hidden">
-        <div class="stat-box">
-          <div class="stat-value" id="stat-sessions">0</div>
-          <div class="stat-label">Sessions</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-value" id="stat-average">0%</div>
-          <div class="stat-label">Average Score</div>
-        </div>
-      </div>
-
-      <div id="progress-empty" class="empty-state">
-        <p>No practice sessions yet.</p>
-        <p>Complete a practice session to see your progress here.</p>
-      </div>
-
-      <div id="progress-table-wrap" class="hidden">
-        <table class="progress-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Topic</th>
-              <th>Score</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody id="progress-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-  </section>
-
-</main>
-
-<script src="/static/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IELTS Reading Practice</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
 </html>

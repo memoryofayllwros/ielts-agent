@@ -560,6 +560,142 @@ section { display: flex; flex-direction: column; gap: 20px; }
 .bar-wrap { width: 100px; height: 6px; background: var(--gray-200); border-radius: 3px; }
 .bar-fill { height: 100%; border-radius: 3px; background: var(--blue); }
 
+/* ===== Review Panel ===== */
+.review-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+}
+
+.review-nav-meta {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#review-meta {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.score-pill {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+}
+
+.progress-table th:last-child,
+.progress-table td:last-child { text-align: right; }
+
+/* ===== Auth Overlay ===== */
+#auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 24px;
+}
+
+#auth-overlay.hidden { display: none !important; }
+
+.auth-card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 16px;
+  padding: 36px 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.auth-logo .logo-icon { font-size: 26px; }
+.auth-logo .logo-text { font-size: 20px; font-weight: 700; }
+
+.auth-tabs {
+  display: flex;
+  background: var(--gray-100);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+.auth-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.auth-tab.active {
+  background: #fff;
+  color: var(--gray-900);
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.field input {
+  padding: 10px 14px;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .15s;
+}
+
+.field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+}
+
+.btn-full { width: 100%; margin-top: 4px; }
+
+/* ===== User info in header ===== */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
 /* ===== Utilities ===== */
 .hidden { display: none !important; }
 

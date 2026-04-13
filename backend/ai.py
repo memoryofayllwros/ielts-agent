@@ -1,132 +1,92 @@
+import os
 import json
 import re
-import anthropic
 from typing import Optional
 
-client = anthropic.Anthropic()
+from openai import AsyncOpenAI
 
-SYSTEM_PROMPT = """You are an expert PTE Academic test creator specializing in reading comprehension.
-Generate authentic, exam-quality PTE Academic reading practice sessions.
-Always return valid JSON exactly matching the schema described in the user message."""
+_client: Optional[AsyncOpenAI] = None
 
-GENERATION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "passage": {
-            "type": "string"
-        },
-        "topic": {
-            "type": "string"
-        },
-        "questions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "type": {
-                        "type": "string",
-                        "enum": ["fill_in_blanks", "mc_single", "mc_multiple"]
-                    },
-                    "passage_with_blanks": {
-                        "anyOf": [{"type": "string"}, {"type": "null"}]
-                    },
-                    "word_bank": {
-                        "anyOf": [
-                            {"type": "array", "items": {"type": "string"}},
-                            {"type": "null"}
-                        ]
-                    },
-                    "question": {
-                        "anyOf": [{"type": "string"}, {"type": "null"}]
-                    },
-                    "options": {
-                        "anyOf": [
-                            {"type": "array", "items": {"type": "string"}},
-                            {"type": "null"}
-                        ]
-                    },
-                    "correct_answers": {
-                        "type": "array",
-                        "items": {"type": "string"}
-                    },
-                    "explanation": {"type": "string"}
-                },
-                "required": [
-                    "id", "type", "passage_with_blanks", "word_bank",
-                    "question", "options", "correct_answers", "explanation"
-                ],
-                "additionalProperties": False
-            }
-        }
-    },
-    "required": ["passage", "topic", "questions"],
-    "additionalProperties": False
-}
+MODEL = "anthropic/claude-3-haiku"
+
+
+def _get_client() -> AsyncOpenAI:
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+        )
+    return _client
+
+
+SYSTEM_PROMPT = """You are an expert IELTS Academic reading test creator specializing in reading comprehension.
+Generate authentic, exam-quality IELTS Academic reading practice sessions.
+Always return valid JSON exactly matching the schema described in the user message.
+Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
 def build_prompt(topic: Optional[str]) -> str:
-    topic_line = f"Topic: {topic}" if topic else "Choose an interesting academic topic (science, environment, technology, history, economics, linguistics, etc.)"
-    return f"""Create a PTE Academic Reading practice session.
+    topic_line = (
+        f"Topic: {topic}"
+        if topic
+        else "Choose an interesting academic topic (science, environment, technology, history, economics, linguistics, etc.)"
+    )
+    return f"""Create an IELTS Academic Reading practice session.
 
 {topic_line}
 
-Generate a JSON object with:
+Return a JSON object with exactly these fields:
 
-1. "passage": A 150–200 word academic-style passage on the topic. Use formal language appropriate for PTE Academic.
-
-2. "topic": Short topic name (2-4 words).
-
-3. "questions": An array of exactly 3 questions — one of each type:
-
-   TYPE 1 — fill_in_blanks:
-   - "id": "q1"
-   - "type": "fill_in_blanks"
-   - "passage_with_blanks": Copy the passage but replace 3 key content words with markers [1], [2], [3]
-   - "word_bank": Array of 7–8 words: the 3 correct words + 4–5 plausible distractors, shuffled
-   - "question": null
-   - "options": null
-   - "correct_answers": ["word_for_1", "word_for_2", "word_for_3"] in order
-   - "explanation": Brief explanation of why each blank has that answer
-
-   TYPE 2 — mc_single (one correct answer):
-   - "id": "q2"
-   - "type": "mc_single"
-   - "passage_with_blanks": null
-   - "word_bank": null
-   - "question": A comprehension question about the passage
-   - "options": ["A. option text", "B. option text", "C. option text", "D. option text"]
-   - "correct_answers": ["A"] (just the letter of the correct option)
-   - "explanation": Why this answer is correct and the others are wrong
-
-   TYPE 3 — mc_multiple (two correct answers):
-   - "id": "q3"
-   - "type": "mc_multiple"
-   - "passage_with_blanks": null
-   - "word_bank": null
-   - "question": A question asking to identify TWO correct statements or facts
-   - "options": ["A. ...", "B. ...", "C. ...", "D. ...", "E. ..."]
-   - "correct_answers": ["B", "D"] (letters of the two correct options)
-   - "explanation": Why these two answers are correct
-
-Return ONLY the JSON object, no other text."""
+{{
+  "passage": "<150-200 word academic passage>",
+  "topic": "<2-4 word topic name>",
+  "questions": [
+    {{
+      "id": "q1",
+      "type": "fill_in_blanks",
+      "passage_with_blanks": "<passage text with 3 words replaced by [BLANK_1], [BLANK_2], [BLANK_3]>",
+      "word_bank": ["<7-8 words: 3 correct + 4-5 distractors, shuffled>"],
+      "question": null,
+      "options": null,
+      "correct_answers": ["<word for BLANK_1>", "<word for BLANK_2>", "<word for BLANK_3>"],
+      "explanation": "<why each blank has that answer>"
+    }},
+    {{
+      "id": "q2",
+      "type": "mc_single",
+      "passage_with_blanks": null,
+      "word_bank": null,
+      "question": "<comprehension question>",
+      "options": ["A. <text>", "B. <text>", "C. <text>", "D. <text>"],
+      "correct_answers": ["<letter of correct option>"],
+      "explanation": "<why this answer is correct and others are wrong>"
+    }},
+    {{
+      "id": "q3",
+      "type": "mc_multiple",
+      "passage_with_blanks": null,
+      "word_bank": null,
+      "question": "<question asking to identify TWO correct statements>",
+      "options": ["A. <text>", "B. <text>", "C. <text>", "D. <text>", "E. <text>"],
+      "correct_answers": ["<letter>", "<letter>"],
+      "explanation": "<why these two answers are correct>"
+    }}
+  ]
+}}"""
 
 
 def _extract_json(text: str) -> dict:
-    """Extract JSON from Claude's response text."""
-    # Try direct parse first
     text = text.strip()
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Try to find JSON block
     match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', text)
     if match:
         return json.loads(match.group(1))
 
-    # Find first { and last }
     start = text.find('{')
     end = text.rfind('}')
     if start != -1 and end != -1:
@@ -136,29 +96,21 @@ def _extract_json(text: str) -> dict:
 
 
 async def generate_practice_session(topic: Optional[str] = None) -> dict:
-    """Generate a PTE reading practice session using Claude."""
+    """Generate an IELTS Academic reading practice session via Claude on OpenRouter."""
     prompt = build_prompt(topic)
 
-    with client.messages.stream(
-        model="claude-opus-4-6",
+    response = await _get_client().chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
         max_tokens=4000,
-        thinking={"type": "adaptive"},
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-        output_config={
-            "format": {
-                "type": "json_schema",
-                "schema": GENERATION_SCHEMA
-            }
-        }
-    ) as stream:
-        final = stream.get_final_message()
-
-    text = next(
-        (block.text for block in final.content if block.type == "text"),
-        None
     )
+
+    text = response.choices[0].message.content
     if not text:
-        raise ValueError("No text content in Claude response")
+        raise ValueError("Empty response from model")
 
     return _extract_json(text)
