@@ -13,7 +13,13 @@ DB_NAME = "ielts_reading_agent"
 
 
 async def init_db():
+    """Initialise the Motor client and ensure indexes exist.
+
+    Idempotent: safe to call multiple times (e.g. on Vercel warm starts).
+    """
     global _client, _db
+    if _db is not None:
+        return  # Already initialised on a previous warm invocation
     url = os.environ["MONGODB_URL"]
     _client = AsyncIOMotorClient(url)
     _db = _client[DB_NAME]
