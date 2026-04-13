@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -91,6 +91,9 @@ export default function ObjectivePracticePage({
   contentLabel,
   intro,
   loadingBlurb,
+  prefetchedSession = null,
+  diagnosticContinueLabel = null,
+  onDiagnosticContinue = null,
 }) {
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,6 +101,15 @@ export default function ObjectivePracticePage({
   const [session, setSession] = useState(null);
   const [answers, setAnswers] = useState({});
   const [results, setResults] = useState(null);
+
+  useEffect(() => {
+    if (prefetchedSession?.session_id) {
+      setSession(prefetchedSession);
+      setAnswers({});
+      setResults(null);
+      setError("");
+    }
+  }, [prefetchedSession]);
 
   const scriptText = session
     ? (skill === "listening" ? (session.transcript || session.passage) : session.passage)
@@ -116,6 +128,7 @@ export default function ObjectivePracticePage({
     : false;
 
   const handleGenerate = async () => {
+    if (prefetchedSession?.session_id) return;
     setError("");
     setLoading(true);
     try {
@@ -144,6 +157,10 @@ export default function ObjectivePracticePage({
   };
 
   const handleReset = () => {
+    if (prefetchedSession?.session_id) {
+      onDiagnosticContinue?.();
+      return;
+    }
     setSession(null);
     setAnswers({});
     setResults(null);
@@ -151,6 +168,21 @@ export default function ObjectivePracticePage({
     setTopic("");
     window.speechSynthesis.cancel();
   };
+
+  const waitingPrefetch = prefetchedSession?.session_id && !session?.session_id;
+  if (waitingPrefetch) {
+    return (
+      <Box>
+        <DashboardNavbar title={navbarTitle} />
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+          <Card sx={{ borderRadius: "16px", p: 5, textAlign: "center" }}>
+            <CircularProgress sx={{ mb: 3 }} />
+            <Typography variant="h6" fontWeight={600}>{loadingBlurb}</Typography>
+          </Card>
+        </Box>
+      </Box>
+    );
+  }
 
   if (!session && !loading) {
     return (
@@ -161,6 +193,7 @@ export default function ObjectivePracticePage({
             <CardContent sx={{ p: 4, textAlign: "center" }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>{navbarTitle}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{intro}</Typography>
+              {!prefetchedSession && (
               <TextField
                 label="Topic (optional)"
                 placeholder="e.g. Climate change, campus life…"
@@ -171,6 +204,7 @@ export default function ObjectivePracticePage({
                 inputProps={{ maxLength: 80 }}
                 sx={{ mb: 2 }}
               />
+              )}
               {error && <Alert severity="error" sx={{ mb: 2, borderRadius: "8px" }}>{error}</Alert>}
               <Button variant="contained" color="primary" size="large" fullWidth onClick={handleGenerate} sx={{ py: 1.5, borderRadius: "10px", fontWeight: 700 }}>
                 Start session
@@ -211,7 +245,11 @@ export default function ObjectivePracticePage({
                 {results.total_score} / {results.max_score} points · {results.question_results.filter((r) => r.is_correct).length} of {results.question_results.length} correct
               </Typography>
             </Box>
-            <Button variant="contained" color="primary" onClick={handleReset} sx={{ borderRadius: "10px", fontWeight: 700 }}>Practice again</Button>
+            {onDiagnosticContinue && diagnosticContinueLabel ? (
+              <Button variant="contained" color="primary" onClick={() => onDiagnosticContinue()} sx={{ borderRadius: "10px", fontWeight: 700 }}>{diagnosticContinueLabel}</Button>
+            ) : (
+              <Button variant="contained" color="primary" onClick={handleReset} sx={{ borderRadius: "10px", fontWeight: 700 }}>Practice again</Button>
+            )}
           </CardContent>
         </Card>
         <Card sx={{ mb: 3, borderRadius: "16px" }}>
@@ -235,8 +273,10 @@ export default function ObjectivePracticePage({
       <Card sx={{ mb: 3, borderRadius: "16px" }}>
         <CardContent sx={{ p: 2.5, display: "flex", alignItems: "center", gap: 2 }}>
           <Chip label={session.topic} sx={{ background: "#f0f2f5", fontWeight: 600 }} />
-          <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>3 questions</Typography>
-          <Button variant="outlined" size="small" onClick={handleReset} sx={{ borderRadius: "8px" }}>New session</Button>
+          <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+            {session.questions?.length ?? 0} question{(session.questions?.length ?? 0) === 1 ? "" : "s"}
+          </Typography>
+          <Button variant="outlined" size="small" onClick={handleReset} sx={{ borderRadius: "8px" }}>{prefetchedSession?.session_id ? "Exit" : "New session"}</Button>
         </CardContent>
       </Card>
       <Card sx={{ mb: 3, borderRadius: "16px" }}>

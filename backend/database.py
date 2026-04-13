@@ -68,9 +68,62 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
     return await _db_handle().users.find_one({"_id": user_id})
 
 
+# ── Diagnostic baseline ───────────────────────────────────────────────────────
+
+DIAGNOSTIC_SKILLS = frozenset({"reading", "listening", "writing", "speaking"})
+
+
+async def record_diagnostic_skill_outcome(user_id: str, skill: str, estimated_band: float) -> dict:
+    """Store one skill's estimated band; set diagnostic_completed_at when all four are present."""
+    if skill not in DIAGNOSTIC_SKILLS:
+        raise ValueError("invalid diagnostic skill")
+    db = _db_handle()
+    band = round(float(estimated_band), 1)
+    await db.users.update_one(
+        {"_id": user_id},
+        {"$set": {f"diagnostic_bands.{skill}": band}},
+    )
+    user = await get_user_by_id(user_id)
+    bands = dict(user.get("diagnostic_bands") or {})
+    completed = DIAGNOSTIC_SKILLS <= bands.keys()
+    now = datetime.now(timezone.utc).isoformat()
+    if completed and not user.get("diagnostic_completed_at"):
+        await db.users.update_one(
+            {"_id": user_id},
+            {"$set": {"diagnostic_completed_at": now}},
+        )
+    return {"bands": bands, "completed": completed}
+
+
+async def diagnostic_status(user_id: str) -> dict:
+    user = await get_user_by_id(user_id)
+    if not user:
+        return {
+            "completed": False,
+            "bands": {},
+            "completed_at": None,
+            "remaining_skills": list(DIAGNOSTIC_SKILLS),
+        }
+    bands = dict(user.get("diagnostic_bands") or {})
+    remaining = sorted(DIAGNOSTIC_SKILLS - set(bands.keys()))
+    completed_at = user.get("diagnostic_completed_at")
+    completed = bool(completed_at) or (DIAGNOSTIC_SKILLS <= bands.keys())
+    return {
+        "completed": completed,
+        "bands": bands,
+        "completed_at": completed_at,
+        "remaining_skills": remaining,
+    }
+
+
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
-async def save_session(session_data: dict, user_id: str, skill: str = "reading") -> str:
+async def save_session(
+    session_data: dict,
+    user_id: str,
+    skill: str = "reading",
+    is_diagnostic: bool = False,
+) -> str:
     session_id = str(uuid.uuid4())
     doc = {
         "_id": session_id,
@@ -79,6 +132,7 @@ async def save_session(session_data: dict, user_id: str, skill: str = "reading")
         "topic": session_data["topic"],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "session_data": session_data,
+        "is_diagnostic": bool(is_diagnostic),
     }
     await _db_handle().sessions.insert_one(doc)
     return session_id
@@ -105,6 +159,7 @@ async def save_result(
     max_score: float,
     result_data: dict,
     skill: str = "reading",
+    is_diagnostic: bool = False,
 ) -> str:
     result_id = str(uuid.uuid4())
     doc = {
@@ -118,13 +173,17 @@ async def save_result(
         "total_score": total_score,
         "max_score": max_score,
         "result_data": result_data,
+        "is_diagnostic": bool(is_diagnostic),
     }
     await _db_handle().results.insert_one(doc)
     return result_id
 
 
 async def get_progress(user_id: str, limit: int = 50, skill: Optional[str] = None) -> list[dict]:
-    query: dict = {"user_id": user_id}
+    query: dict = {
+        "user_id": user_id,
+        "is_diagnostic": {"$ne": True},
+    }
     if skill:
         if skill == "reading":
             query["$or"] = [{"skill": "reading"}, {"skill": {"$exists": False}}]

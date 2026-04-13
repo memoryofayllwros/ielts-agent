@@ -26,15 +26,21 @@ Always return valid JSON exactly matching the schema described in the user messa
 Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
-def build_prompt(topic: Optional[str]) -> str:
+def build_prompt(topic: Optional[str], learner_band: Optional[float] = None) -> str:
     topic_line = (
         f"Topic: {topic}"
         if topic
         else "Choose an interesting academic topic (science, environment, technology, history, economics, linguistics, etc.)"
     )
+    level_line = ""
+    if learner_band is not None:
+        level_line = (
+            f"\nLearner baseline (approximate overall band from diagnostic): ~{learner_band:.1f}. "
+            "Pitch passage difficulty and question complexity to this level.\n"
+        )
     return f"""Create an IELTS Academic Reading practice session.
 
-{topic_line}
+{topic_line}{level_line}
 
 Return a JSON object with exactly these fields:
 
@@ -95,9 +101,12 @@ def _extract_json(text: str) -> dict:
     raise ValueError("No valid JSON found in response")
 
 
-async def generate_practice_session(topic: Optional[str] = None) -> dict:
+async def generate_practice_session(
+    topic: Optional[str] = None,
+    learner_band: Optional[float] = None,
+) -> dict:
     """Generate an IELTS Academic reading practice session via Claude on OpenRouter."""
-    prompt = build_prompt(topic)
+    prompt = build_prompt(topic, learner_band=learner_band)
 
     response = await _get_client().chat.completions.create(
         model=MODEL,
@@ -113,4 +122,57 @@ async def generate_practice_session(topic: Optional[str] = None) -> dict:
     if not text:
         raise ValueError("Empty response from model")
 
+    return _extract_json(text)
+
+
+def build_diagnostic_reading_prompt(topic: Optional[str]) -> str:
+    topic_line = (
+        f"Topic: {topic}"
+        if topic
+        else "Choose a compact academic topic suitable for a quick level check."
+    )
+    return f"""Create a SHORT baseline diagnostic IELTS Academic Reading mini-test.
+
+{topic_line}
+
+Requirements:
+- "passage": 90–120 words only, academic tone.
+- Exactly **5** items in "questions" (ids q1–q5). Mix: at least one fill_in_blanks, at least one mc_single, at least one mc_multiple (two correct letters). Remaining types are your choice among those three.
+- For fill_in_blanks use [BLANK_1], [BLANK_2], … placeholders and a shuffled word_bank with correct words plus distractors.
+
+Return a JSON object with exactly these fields:
+
+{{
+  "passage": "<90-120 words>",
+  "topic": "<2-4 word topic name>",
+  "questions": [
+    {{
+      "id": "q1",
+      "type": "fill_in_blanks",
+      "passage_with_blanks": "<text with [BLANK_n] placeholders>",
+      "word_bank": ["<words shuffled>"],
+      "question": null,
+      "options": null,
+      "correct_answers": ["<in blank order>"],
+      "explanation": "<brief>"
+    }}
+    // ... exactly 5 question objects total, ids q1 through q5
+  ]
+}}"""
+
+
+async def generate_diagnostic_reading_session(topic: Optional[str] = None) -> dict:
+    prompt = build_diagnostic_reading_prompt(topic)
+    response = await _get_client().chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=4000,
+    )
+    text = response.choices[0].message.content
+    if not text:
+        raise ValueError("Empty response from model")
     return _extract_json(text)

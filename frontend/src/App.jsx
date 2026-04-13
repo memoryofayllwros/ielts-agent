@@ -16,9 +16,11 @@ import ListeningPracticePage from "pages/ListeningPracticePage";
 import WritingPracticePage from "pages/WritingPracticePage";
 import SpeakingPracticePage from "pages/SpeakingPracticePage";
 import ProgressPage from "pages/ProgressPage";
+import DiagnosticPage from "pages/DiagnosticPage";
 
 const NAV_ROUTES = [
   { key: "practice", name: "Practice", icon: "school", route: "/practice" },
+  { key: "diagnostic", name: "Diagnostic", icon: "analytics", route: "/practice/diagnostic" },
   { key: "progress", name: "Progress", icon: "bar_chart", route: "/progress" },
 ];
 
@@ -112,6 +114,18 @@ export default function App() {
               <DashboardLayout>
                 <MainContent>
                   <SpeakingPracticePage />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/practice/diagnostic"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <DiagnosticPage />
                 </MainContent>
               </DashboardLayout>
             </ProtectedRoute>

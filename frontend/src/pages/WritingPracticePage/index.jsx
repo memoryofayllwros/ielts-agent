@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -46,7 +46,11 @@ function EvaluationView({ evaluation }) {
   );
 }
 
-export default function WritingPracticePage() {
+export default function WritingPracticePage({
+  prefetchedSession = null,
+  onDiagnosticContinue = null,
+  diagnosticContinueLabel = null,
+}) {
   const [topic, setTopic] = useState("");
   const [taskType, setTaskType] = useState("write_essay");
   const [loading, setLoading] = useState(false);
@@ -55,9 +59,19 @@ export default function WritingPracticePage() {
   const [text, setText] = useState("");
   const [evaluation, setEvaluation] = useState(null);
 
+  useEffect(() => {
+    if (prefetchedSession?.session_id) {
+      setSession(prefetchedSession);
+      setText("");
+      setEvaluation(null);
+      setError("");
+    }
+  }, [prefetchedSession]);
+
   const minW = session?.word_limit?.min ?? (session?.task_type === "summarize_written_text" ? 150 : 250);
 
   const handleGenerate = async () => {
+    if (prefetchedSession?.session_id) return;
     setError("");
     setLoading(true);
     try {
@@ -78,8 +92,13 @@ export default function WritingPracticePage() {
 
   const handleSubmit = async () => {
     setError("");
-    if (wordCount(text) < 20) {
-      setError("Please write a fuller response before submitting.");
+    const submitMin = prefetchedSession?.session_id ? 80 : 20;
+    if (wordCount(text) < submitMin) {
+      setError(
+        prefetchedSession?.session_id
+          ? `Please write at least ${submitMin} words for this diagnostic section.`
+          : "Please write a fuller response before submitting.",
+      );
       return;
     }
     setLoading(true);
@@ -94,12 +113,25 @@ export default function WritingPracticePage() {
   };
 
   const handleReset = () => {
+    if (prefetchedSession?.session_id && onDiagnosticContinue) {
+      onDiagnosticContinue();
+      return;
+    }
     setSession(null);
     setText("");
     setEvaluation(null);
     setError("");
     setTopic("");
   };
+
+  if (prefetchedSession?.session_id && (!session || session.session_id !== prefetchedSession.session_id)) {
+    return (
+      <Box>
+        <DashboardNavbar title="Diagnostic — Writing" />
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}><CircularProgress /></Box>
+      </Box>
+    );
+  }
 
   if (!session && !loading) {
     return (
@@ -112,6 +144,8 @@ export default function WritingPracticePage() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Task 1 (report) or Task 2 (essay). Your work is scored against IELTS-style criteria.
               </Typography>
+              {!prefetchedSession?.session_id && (
+              <>
               <TextField
                 select
                 label="Task type"
@@ -132,6 +166,8 @@ export default function WritingPracticePage() {
                 size="small"
                 sx={{ mb: 2 }}
               />
+              </>
+              )}
               {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
               <Button variant="contained" fullWidth onClick={handleGenerate}>Generate task</Button>
             </CardContent>
@@ -154,15 +190,19 @@ export default function WritingPracticePage() {
 
   const isT1 = session.task_type === "summarize_written_text";
 
+  const navTitle = prefetchedSession?.session_id
+    ? (evaluation ? "Diagnostic — Writing (results)" : "Diagnostic — Writing")
+    : (evaluation ? "Writing — Results" : "Writing");
+
   return (
     <Box>
-      <DashboardNavbar title={evaluation ? "Writing — Results" : "Writing"} />
+      <DashboardNavbar title={navTitle} />
       <Card sx={{ mb: 2, borderRadius: "16px" }}>
         <CardContent sx={{ p: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
           <Chip label={session.topic} />
           <Chip label={isT1 ? "Task 1" : "Task 2"} variant="outlined" />
           <Box sx={{ flex: 1 }} />
-          <Button size="small" onClick={handleReset}>New task</Button>
+          <Button size="small" onClick={handleReset}>{prefetchedSession?.session_id ? "Exit" : "New task"}</Button>
         </CardContent>
       </Card>
 
@@ -210,7 +250,11 @@ export default function WritingPracticePage() {
             <Typography variant="caption" color="text.secondary">Score (rubric-based)</Typography>
             <Typography variant="h4" fontWeight={700} color="primary">{evaluation.percentage}%</Typography>
             <EvaluationView evaluation={evaluation} />
-            <Button sx={{ mt: 3 }} variant="contained" onClick={handleReset}>Another task</Button>
+            {onDiagnosticContinue && diagnosticContinueLabel ? (
+              <Button sx={{ mt: 3 }} variant="contained" onClick={() => onDiagnosticContinue()}>{diagnosticContinueLabel}</Button>
+            ) : (
+              <Button sx={{ mt: 3 }} variant="contained" onClick={handleReset}>Another task</Button>
+            )}
           </CardContent>
         </Card>
       )}

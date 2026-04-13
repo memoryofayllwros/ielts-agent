@@ -12,11 +12,16 @@ from pathlib import Path
 
 from models import (
     RegisterRequest, LoginRequest, AuthResponse,
-    GenerateRequest, SubmitRequest, SubmitResponse,
+    GenerateRequest, DiagnosticGenerateRequest, SubmitRequest, SubmitResponse,
     SubmitWritingRequest, SubmitSpeakingJsonRequest, ListeningTtsRequest,
     QuestionResult, ProgressResponse, ProgressEntry, ResultDetail,
 )
-from ai import generate_practice_session
+from ai import generate_practice_session, generate_diagnostic_reading_session
+from diagnostic import (
+    average_diagnostic_band,
+    percentage_to_estimated_band,
+    rubric_band_to_numeric,
+)
 from agents import (
     listening_agent,
     writing_agent,
@@ -27,9 +32,10 @@ from agents import (
 from auth import hash_password, verify_password, create_access_token, get_current_user_id
 from database import (
     init_db, close_db,
-    create_user, get_user_by_email,
+    create_user, get_user_by_email, get_user_by_id,
     save_session, get_session_record,
     save_result, get_progress, get_result_detail,
+    diagnostic_status, record_diagnostic_skill_outcome,
 )
 
 
@@ -101,19 +107,75 @@ def _questions_safe(raw: dict) -> list:
 
 # ── Practice ──────────────────────────────────────────────────────────────────
 
+async def _learner_band_hint(user_id: str):
+    user = await get_user_by_id(user_id)
+    return average_diagnostic_band(user)
+
+
+@app.get("/api/diagnostic/status")
+async def get_diagnostic_status(user_id: str = Depends(get_current_user_id)):
+    return await diagnostic_status(user_id)
+
+
+@app.post("/api/diagnostic/generate")
+async def diagnostic_generate(req: DiagnosticGenerateRequest, user_id: str = Depends(get_current_user_id)):
+    st = await diagnostic_status(user_id)
+    if st["completed"]:
+        raise HTTPException(status_code=400, detail="Baseline diagnostic is already complete")
+    step = req.step
+    if step in st["bands"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The {step} diagnostic section is already complete. Continue with another skill.",
+        )
+    topic = req.topic
+    try:
+        if step == "reading":
+            raw = await generate_diagnostic_reading_session(topic)
+        elif step == "listening":
+            raw = await listening_agent(topic, diagnostic=True)
+        elif step == "writing":
+            raw = await writing_agent(topic, "write_essay", diagnostic=True)
+        else:
+            raw = await speaking_agent(topic)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Diagnostic generation failed: {str(e)}")
+
+    session_id = await save_session(raw, user_id, skill=step, is_diagnostic=True)
+
+    if step in ("reading", "listening"):
+        return {
+            "session_id": session_id,
+            "skill": step,
+            "topic": raw["topic"],
+            "passage": raw.get("passage", ""),
+            "transcript": raw.get("transcript") if step == "listening" else None,
+            "questions": _questions_safe(raw),
+            "is_diagnostic": True,
+        }
+
+    if step == "writing":
+        client_payload = {k: v for k, v in raw.items() if k != "model_answer"}
+        return {"session_id": session_id, "skill": step, **client_payload, "is_diagnostic": True}
+
+    client_sp = {k: v for k, v in raw.items() if k != "model_outline"}
+    return {"session_id": session_id, "skill": step, **client_sp, "is_diagnostic": True}
+
+
 @app.post("/api/practice/generate")
 async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user_id)):
     skill = req.skill
+    learner_band = await _learner_band_hint(user_id)
     try:
         if skill == "reading":
-            raw = await generate_practice_session(req.topic)
+            raw = await generate_practice_session(req.topic, learner_band=learner_band)
         elif skill == "listening":
-            raw = await listening_agent(req.topic)
+            raw = await listening_agent(req.topic, learner_band=learner_band)
         elif skill == "writing":
             wtype = req.writing_task_type or "write_essay"
-            raw = await writing_agent(req.topic, wtype)
+            raw = await writing_agent(req.topic, wtype, learner_band=learner_band)
         else:
-            raw = await speaking_agent(req.topic)
+            raw = await speaking_agent(req.topic, learner_band=learner_band)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
@@ -178,6 +240,7 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
 
     percentage = round((total_earned / total_max * 100) if total_max > 0 else 0, 1)
 
+    is_diag = bool(rec.get("is_diagnostic"))
     await save_result(
         session_id=req.session_id,
         user_id=user_id,
@@ -187,7 +250,12 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
         max_score=total_max,
         result_data={"question_results": [r.model_dump() for r in question_results]},
         skill=skill,
+        is_diagnostic=is_diag,
     )
+    if is_diag:
+        await record_diagnostic_skill_outcome(
+            user_id, skill, percentage_to_estimated_band(percentage),
+        )
 
     return SubmitResponse(
         session_id=req.session_id,
@@ -227,6 +295,7 @@ async def submit_writing(req: SubmitWritingRequest, user_id: str = Depends(get_c
         "passage": session.get("passage"),
     }
 
+    is_diag = bool(rec.get("is_diagnostic"))
     await save_result(
         session_id=req.session_id,
         user_id=user_id,
@@ -240,7 +309,12 @@ async def submit_writing(req: SubmitWritingRequest, user_id: str = Depends(get_c
             "writing_task_summary": summary,
         },
         skill="writing",
+        is_diagnostic=is_diag,
     )
+    if is_diag:
+        await record_diagnostic_skill_outcome(
+            user_id, "writing", rubric_band_to_numeric(evaluation.get("band")),
+        )
 
     return {"session_id": req.session_id, "topic": session.get("topic"), "evaluation": evaluation}
 
@@ -296,6 +370,7 @@ async def _submit_speaking_impl(
         "bullet_points": session.get("bullet_points"),
     }
 
+    is_diag = bool(rec.get("is_diagnostic"))
     await save_result(
         session_id=session_id,
         user_id=user_id,
@@ -309,7 +384,12 @@ async def _submit_speaking_impl(
             "speaking_task": speaking_task,
         },
         skill="speaking",
+        is_diagnostic=is_diag,
     )
+    if is_diag:
+        await record_diagnostic_skill_outcome(
+            user_id, "speaking", rubric_band_to_numeric(evaluation.get("band")),
+        )
 
     return {"session_id": session_id, "topic": session.get("topic"), "evaluation": evaluation}
 

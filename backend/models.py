@@ -44,6 +44,12 @@ class GenerateRequest(BaseModel):
     writing_task_type: Optional[WritingTaskLiteral] = "write_essay"
 
 
+class DiagnosticGenerateRequest(BaseModel):
+    """Start one section of the four-skill baseline diagnostic."""
+    step: SkillLiteral
+    topic: Optional[str] = None
+
+
 class Question(BaseModel):
     id: str
     type: str  # "fill_in_blanks" | "mc_single" | "mc_multiple"

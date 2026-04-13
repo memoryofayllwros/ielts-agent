@@ -70,6 +70,17 @@ export async function generateSession({ skill = "reading", topic = null, writing
   });
 }
 
+export async function fetchDiagnosticStatus() {
+  return request("/diagnostic/status", { method: "GET" });
+}
+
+export async function generateDiagnosticStep({ step, topic = null }) {
+  return request("/diagnostic/generate", {
+    method: "POST",
+    body: JSON.stringify({ step, topic: topic || null }),
+  });
+}
+
 export async function submitAnswers(sessionId, answers) {
   return request("/practice/submit", {
     method: "POST",

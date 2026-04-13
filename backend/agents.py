@@ -145,13 +145,13 @@ async def supervisor_agent(user_message: str) -> dict:
 
 # ── Reading agent ─────────────────────────────────────────────────────────────
 
-async def reading_agent(topic: Optional[str]) -> dict:
+async def reading_agent(topic: Optional[str], learner_band: Optional[float] = None) -> dict:
     """
     Wraps the existing reading-session generator.
     Returns the same schema as generate_practice_session().
     """
     from ai import generate_practice_session
-    return await generate_practice_session(topic)
+    return await generate_practice_session(topic, learner_band=learner_band)
 
 
 # ── Writing agent ─────────────────────────────────────────────────────────────
@@ -163,18 +163,29 @@ Always return valid JSON exactly matching the schema in the user message.
 Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
-def _build_writing_prompt(topic: Optional[str], task_type: str) -> str:
+def _build_writing_prompt(
+    topic: Optional[str],
+    task_type: str,
+    learner_band: Optional[float] = None,
+    diagnostic: bool = False,
+) -> str:
     topic_line = (
         f"Topic: {topic}"
         if topic
         else "Choose an interesting academic topic (technology, environment, society, education, health, etc.)"
     )
+    level_line = ""
+    if learner_band is not None:
+        level_line = (
+            f"\nLearner baseline (approximate band): ~{learner_band:.1f}. "
+            "Match task difficulty and model answer style to this level.\n"
+        )
 
     if task_type == "summarize_written_text":
         return f"""\
 Create an IELTS Writing Task 1 Academic practice task.
 
-{topic_line}
+{topic_line}{level_line}
 
 The "passage" field must be a clear written description of data as if describing a chart, table, bar graph, line graph, pie chart, process diagram, or map (no image — only text). The student will write a formal report summarising the information.
 
@@ -197,10 +208,29 @@ Return a JSON object with exactly these fields:
 }}"""
 
     # write_essay — IELTS Writing Task 2
+    diag_note = ""
+    word_limit = {"min": 250, "max": 320}
+    time_mins = 40
+    instruction = (
+        "Write at least 250 words. Give reasons for your answer and include relevant examples "
+        "from your knowledge or experience. You have 40 minutes."
+    )
+    if diagnostic:
+        diag_note = (
+            "\nThis is a **diagnostic** Task 2: keep the prompt clear and standard; the student may write "
+            "a shorter answer (minimum 150 words) for time reasons, but the task remains Task 2 style.\n"
+        )
+        word_limit = {"min": 150, "max": 300}
+        time_mins = 25
+        instruction = (
+            "Write at least 150 words (diagnostic). Give reasons and examples where you can. "
+            "You have about 25 minutes."
+        )
+
     return f"""\
 Create an IELTS Writing Task 2 practice task.
 
-{topic_line}
+{topic_line}{level_line}{diag_note}
 
 Return a JSON object with exactly these fields:
 
@@ -208,9 +238,9 @@ Return a JSON object with exactly these fields:
   "task_type": "write_essay",
   "topic": "<2-4 word topic name>",
   "prompt": "<clear IELTS Task 2 question — opinion, discussion, problem/solution, or two-part question, 1-2 sentences>",
-  "instruction": "Write at least 250 words. Give reasons for your answer and include relevant examples from your knowledge or experience. You have 40 minutes.",
-  "word_limit": {{"min": 250, "max": 320}},
-  "time_limit_minutes": 40,
+  "instruction": {json.dumps(instruction)},
+  "word_limit": {json.dumps(word_limit)},
+  "time_limit_minutes": {time_mins},
   "outline": [
     "Introduction: paraphrase the question and state your position or scope",
     "Body paragraph 1: main idea with explanation and example",
@@ -227,13 +257,18 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def writing_agent(topic: Optional[str], task_type: str = "write_essay") -> dict:
+async def writing_agent(
+    topic: Optional[str],
+    task_type: str = "write_essay",
+    learner_band: Optional[float] = None,
+    diagnostic: bool = False,
+) -> dict:
     """
     Generates an IELTS writing practice task (Task 1 report or Task 2 essay).
     Returns a dict with agent_type, task_type, topic, prompt/passage, scoring criteria, etc.
     """
     client = _get_client()
-    prompt = _build_writing_prompt(topic, task_type)
+    prompt = _build_writing_prompt(topic, task_type, learner_band=learner_band, diagnostic=diagnostic)
 
     response = await client.chat.completions.create(
         model=MODEL,
@@ -354,16 +389,47 @@ Always return valid JSON exactly matching the schema in the user message.
 Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
-def _build_listening_prompt(topic: Optional[str]) -> str:
+def _build_listening_prompt(
+    topic: Optional[str],
+    learner_band: Optional[float] = None,
+    diagnostic: bool = False,
+) -> str:
     topic_line = (
         f"Topic: {topic}"
         if topic
         else "Choose an everyday or academic listening context (campus, travel, interview, lecture excerpt, etc.)"
     )
+    level_line = ""
+    if learner_band is not None:
+        level_line = (
+            f"\nLearner baseline (approximate band): ~{learner_band:.1f}. "
+            "Match transcript speed/density and question difficulty to this level.\n"
+        )
+
+    if diagnostic:
+        return f"""\
+Create a SHORT baseline diagnostic IELTS Listening mini-test (script only — audio may be synthesised separately).
+
+{topic_line}{level_line}
+
+The "transcript" field must be 90–130 words, natural speech, with lines like "A: ..." / "B: ..." or a single speaker.
+Include exactly **5** items in "questions" (ids q1–q5). Mix: at least one fill_in_blanks, at least one mc_single,
+at least one mc_multiple (two correct letters). Remaining items among those types. Questions must test what was heard.
+
+Return a JSON object with exactly these fields:
+
+{{
+  "transcript": "<full script to be read aloud>",
+  "topic": "<2-4 word topic name>",
+  "questions": [
+    // exactly 5 question objects, ids q1 through q5, same shape as standard listening (fill_in_blanks, mc_single, mc_multiple)
+  ]
+}}"""
+
     return f"""\
 Create an IELTS Listening practice session (script only — audio may be synthesised separately).
 
-{topic_line}
+{topic_line}{level_line}
 
 The "transcript" field must be 180-260 words, natural speech, with lines like "A: ..." and "B: ..." for dialogues
 or a single speaker for monologues. Questions test what was heard (not prior knowledge).
@@ -408,9 +474,13 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def listening_agent(topic: Optional[str]) -> dict:
+async def listening_agent(
+    topic: Optional[str],
+    learner_band: Optional[float] = None,
+    diagnostic: bool = False,
+) -> dict:
     client = _get_client()
-    prompt = _build_listening_prompt(topic)
+    prompt = _build_listening_prompt(topic, learner_band=learner_band, diagnostic=diagnostic)
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[
@@ -436,16 +506,22 @@ Generate Part 2 cue-card style practice with clear timing and assessment criteri
 Return ONLY valid JSON — no markdown, no explanation outside the JSON."""
 
 
-def _build_speaking_prompt(topic: Optional[str]) -> str:
+def _build_speaking_prompt(topic: Optional[str], learner_band: Optional[float] = None) -> str:
     topic_line = (
         f"Theme hint: {topic}"
         if topic
         else "Choose a common IELTS Part 2 theme (person, place, object, event, experience)."
     )
+    level_line = ""
+    if learner_band is not None:
+        level_line = (
+            f"\nLearner baseline (approximate band): ~{learner_band:.1f}. "
+            "Pitch cue difficulty and vocabulary to this level.\n"
+        )
     return f"""\
 Create an IELTS Speaking Part 2 practice task.
 
-{topic_line}
+{topic_line}{level_line}
 
 Return a JSON object with exactly these fields:
 {{
@@ -466,9 +542,9 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def speaking_agent(topic: Optional[str]) -> dict:
+async def speaking_agent(topic: Optional[str], learner_band: Optional[float] = None) -> dict:
     client = _get_client()
-    prompt = _build_speaking_prompt(topic)
+    prompt = _build_speaking_prompt(topic, learner_band=learner_band)
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[

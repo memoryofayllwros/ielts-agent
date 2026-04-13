@@ -23,6 +23,19 @@ export default function PracticeHub() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Full IELTS practice: reading, listening, writing, and speaking in one place.
       </Typography>
+      <Card sx={{ borderRadius: "16px", mb: 3, background: "linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%)" }}>
+        <CardContent sx={{ p: 2.5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
+          <Box sx={{ flex: 1, minWidth: 200 }}>
+            <Typography variant="subtitle1" fontWeight={700}>Baseline diagnostic</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Short assessment across all four skills. Your estimated level is saved to guide practice difficulty.
+            </Typography>
+          </Box>
+          <Button variant="contained" color="secondary" onClick={() => navigate("/practice/diagnostic")} sx={{ borderRadius: "10px", fontWeight: 700 }}>
+            Start diagnostic
+          </Button>
+        </CardContent>
+      </Card>
       <Grid container spacing={2}>
         {SKILLS.map((s) => (
           <Grid item xs={12} sm={6} key={s.key}>

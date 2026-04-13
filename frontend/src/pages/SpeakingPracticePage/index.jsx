@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -41,7 +41,11 @@ function EvaluationView({ evaluation }) {
   );
 }
 
-export default function SpeakingPracticePage() {
+export default function SpeakingPracticePage({
+  prefetchedSession = null,
+  onDiagnosticContinue = null,
+  diagnosticContinueLabel = null,
+}) {
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +56,16 @@ export default function SpeakingPracticePage() {
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
   const recRef = useRef(null);
+
+  useEffect(() => {
+    if (prefetchedSession?.session_id) {
+      setSession(prefetchedSession);
+      setTranscript("");
+      setEvaluation(null);
+      setError("");
+      chunksRef.current = [];
+    }
+  }, [prefetchedSession]);
 
   const startRecording = async () => {
     setError("");
@@ -101,6 +115,7 @@ export default function SpeakingPracticePage() {
   };
 
   const handleGenerate = async () => {
+    if (prefetchedSession?.session_id) return;
     setError("");
     setLoading(true);
     try {
@@ -140,6 +155,10 @@ export default function SpeakingPracticePage() {
   };
 
   const handleReset = () => {
+    if (prefetchedSession?.session_id && onDiagnosticContinue) {
+      onDiagnosticContinue();
+      return;
+    }
     setSession(null);
     setTranscript("");
     setEvaluation(null);
@@ -147,6 +166,15 @@ export default function SpeakingPracticePage() {
     setTopic("");
     chunksRef.current = [];
   };
+
+  if (prefetchedSession?.session_id && (!session || session.session_id !== prefetchedSession.session_id)) {
+    return (
+      <Box>
+        <DashboardNavbar title="Diagnostic — Speaking" />
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}><CircularProgress /></Box>
+      </Box>
+    );
+  }
 
   if (!session && !loading) {
     return (
@@ -159,7 +187,9 @@ export default function SpeakingPracticePage() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Record your answer or use live dictation / typed transcript. With OPENROUTER_API_KEY on the server, audio is transcribed via OpenRouter.
               </Typography>
+              {!prefetchedSession?.session_id && (
               <TextField label="Theme hint (optional)" value={topic} onChange={(e) => setTopic(e.target.value)} fullWidth size="small" sx={{ mb: 2 }} />
+              )}
               {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
               <Button variant="contained" fullWidth onClick={handleGenerate}>Get cue card</Button>
             </CardContent>
@@ -178,9 +208,13 @@ export default function SpeakingPracticePage() {
     );
   }
 
+  const navTitle = prefetchedSession?.session_id
+    ? (evaluation ? "Diagnostic — Speaking (results)" : "Diagnostic — Speaking")
+    : (evaluation ? "Speaking — Results" : "Speaking");
+
   return (
     <Box>
-      <DashboardNavbar title={evaluation ? "Speaking — Results" : "Speaking"} />
+      <DashboardNavbar title={navTitle} />
       <Card sx={{ mb: 2, borderRadius: "16px" }}>
         <CardContent sx={{ p: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
           <Chip label={session.topic} />
@@ -188,7 +222,7 @@ export default function SpeakingPracticePage() {
             Prep {session.prep_seconds}s · Speak ~{session.speak_seconds}s
           </Typography>
           <Box sx={{ flex: 1 }} />
-          <Button size="small" onClick={handleReset}>New cue</Button>
+          <Button size="small" onClick={handleReset}>{prefetchedSession?.session_id ? "Exit" : "New cue"}</Button>
         </CardContent>
       </Card>
 
@@ -239,7 +273,11 @@ export default function SpeakingPracticePage() {
             <Typography variant="caption" color="text.secondary">Approximate score (from transcript)</Typography>
             <Typography variant="h4" fontWeight={700} color="primary">{evaluation.percentage}%</Typography>
             <EvaluationView evaluation={evaluation} />
-            <Button sx={{ mt: 3 }} variant="contained" onClick={handleReset}>Another cue</Button>
+            {onDiagnosticContinue && diagnosticContinueLabel ? (
+              <Button sx={{ mt: 3 }} variant="contained" onClick={() => onDiagnosticContinue()}>{diagnosticContinueLabel}</Button>
+            ) : (
+              <Button sx={{ mt: 3 }} variant="contained" onClick={handleReset}>Another cue</Button>
+            )}
           </CardContent>
         </Card>
       )}
