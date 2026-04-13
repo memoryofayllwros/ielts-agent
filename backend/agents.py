@@ -1,14 +1,15 @@
 """
-Multi-agent orchestration for IELTS practice.
+Multi-agent orchestration for IELTS / PTE practice.
 
 Flow:
   User message
       │
   SupervisorAgent  (tool_use routing)
       ├── invoke_reading_agent  ──►  ReadingAgent
-      └── invoke_writing_agent  ──►  WritingAgent
-                                        ├── summarize_written_text  (IELTS Writing Task 1 Academic)
-                                        └── write_essay  (IELTS Writing Task 2)
+      ├── invoke_writing_agent  ──►  WritingAgent
+      │                                 ├── summarize_written_text  (IELTS Writing Task 1 Academic)
+      │                                 └── write_essay  (IELTS Writing Task 2)
+      └── invoke_vocab_agent    ──►  VocabAgent  (20-question CEFR level test A2–C2)
 
 Each agent is a pure async function.  The supervisor uses tool_use to decide
 which sub-agent to call; the sub-agent then calls the model again to generate
@@ -39,6 +40,12 @@ Call invoke_writing_agent when the user wants:
   • Summarising or describing data in writing
   • Writing feedback or a writing task
   • Any request that involves the user producing written output
+
+Call invoke_vocab_agent when the user wants:
+  • A vocabulary test or quiz
+  • To find out their vocabulary level or CEFR level
+  • To check how many words they know
+  • Any request mentioning "vocab", "vocabulary", "word level", or "word test"
 
 Always call exactly one tool. Never respond with plain text."""
 
@@ -94,6 +101,28 @@ SUPERVISOR_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "invoke_vocab_agent",
+            "description": (
+                "Route to the Vocabulary Level Test agent. "
+                "Generates a 20-question CEFR-levelled vocabulary test (A2–C2) "
+                "and estimates the learner's vocabulary level and size after completion."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {
+                        "type": "string",
+                        "description": "Optional topic for vocabulary focus (e.g. 'technology', 'environment'). "
+                                       "Omit for a general mixed-topic test.",
+                    }
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -135,6 +164,12 @@ async def supervisor_agent(user_message: str) -> dict:
                 args.get("task_type", "write_essay"),
             )
             result["agent_type"] = "writing"
+            return result
+
+        if call.function.name == "invoke_vocab_agent":
+            from vocab_agent import generate_vocab_test
+            result = await generate_vocab_test(args.get("topic"))
+            result["agent_type"] = "vocab"
             return result
 
     # Fallback: default to reading if tool_choice was somehow ignored

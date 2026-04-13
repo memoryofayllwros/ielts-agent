@@ -155,3 +155,25 @@ export async function fetchProgress(skill = null) {
 export async function fetchResultDetail(resultId) {
   return request(`/results/${resultId}`);
 }
+
+// ── Vocabulary level test ─────────────────────────────────────────────────────
+
+export async function generateVocabTest(topic = null) {
+  const q = topic ? `?topic=${encodeURIComponent(topic)}` : "";
+  return request(`/vocab/generate${q}`, { method: "POST" });
+}
+
+export async function submitVocabAnswers(sessionId, answers) {
+  return request("/vocab/submit", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId, answers }),
+  });
+}
+
+export async function fetchVocabHistory() {
+  return request("/vocab/history");
+}
+
+export async function fetchVocabResultDetail(resultId) {
+  return request(`/vocab/result/${resultId}`);
+}

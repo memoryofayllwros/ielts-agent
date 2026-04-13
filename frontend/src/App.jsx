@@ -17,9 +17,11 @@ import WritingPracticePage from "pages/WritingPracticePage";
 import SpeakingPracticePage from "pages/SpeakingPracticePage";
 import ProgressPage from "pages/ProgressPage";
 import DiagnosticPage from "pages/DiagnosticPage";
+import VocabTestPage from "pages/VocabTestPage";
 
 const NAV_ROUTES = [
   { key: "practice", name: "Practice", icon: "school", route: "/practice" },
+  { key: "vocab", name: "Vocabulary Test", icon: "spellcheck", route: "/vocab" },
   { key: "diagnostic", name: "Diagnostic", icon: "analytics", route: "/practice/diagnostic" },
   { key: "progress", name: "Progress", icon: "bar_chart", route: "/progress" },
 ];
@@ -138,6 +140,18 @@ export default function App() {
               <DashboardLayout>
                 <MainContent>
                   <ProgressPage />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vocab"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <VocabTestPage />
                 </MainContent>
               </DashboardLayout>
             </ProtectedRoute>

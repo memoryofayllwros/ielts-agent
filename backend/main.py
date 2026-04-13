@@ -15,6 +15,7 @@ from models import (
     GenerateRequest, DiagnosticGenerateRequest, SubmitRequest, SubmitResponse,
     SubmitWritingRequest, SubmitSpeakingJsonRequest, ListeningTtsRequest,
     QuestionResult, ProgressResponse, ProgressEntry, ResultDetail,
+    VocabSubmitRequest, VocabResult, VocabHistoryEntry,
 )
 from ai import generate_practice_session, generate_diagnostic_reading_session
 from diagnostic import (
@@ -36,7 +37,10 @@ from database import (
     save_session, get_session_record,
     save_result, get_progress, get_result_detail,
     diagnostic_status, record_diagnostic_skill_outcome,
+    save_vocab_session, get_vocab_session,
+    save_vocab_result, get_vocab_history, get_vocab_result,
 )
+from vocab_agent import generate_vocab_test, estimate_level
 
 
 @asynccontextmanager
@@ -464,6 +468,91 @@ def _score_question(qtype: str, correct: list, user: list) -> tuple[float, float
     correct_set = {a.strip().upper() for a in correct}
     user_set = {a.strip().upper() for a in user}
     return (1.0, 1.0) if correct_set == user_set else (0.0, 1.0)
+
+
+# ── Vocabulary level test ─────────────────────────────────────────────────────
+
+@app.post("/api/vocab/generate")
+async def vocab_generate(
+    topic: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Generate a 20-question CEFR vocabulary test (A2–C2)."""
+    try:
+        session_data = await generate_vocab_test(topic)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Vocab generation failed: {str(e)}")
+
+    session_id = await save_vocab_session(session_data, user_id)
+
+    # Strip correct answers before sending to the client
+    safe_questions = [
+        {
+            "id": q["id"],
+            "word": q["word"],
+            "level": q["level"],
+            "sentence": q["sentence"],
+            "stem": q.get("stem", f"What does the word '{q['word']}' mean?"),
+            "options": q["options"],
+        }
+        for q in session_data["questions"]
+    ]
+
+    return {
+        "session_id": session_id,
+        "topic": session_data["topic"],
+        "total_questions": len(safe_questions),
+        "questions": safe_questions,
+    }
+
+
+@app.post("/api/vocab/submit", response_model=VocabResult)
+async def vocab_submit(
+    req: VocabSubmitRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Submit answers and receive level estimate + detailed feedback."""
+    session_data = await get_vocab_session(req.session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Vocab session not found")
+
+    evaluation = estimate_level(session_data["questions"], req.answers)
+
+    result_id = await save_vocab_result(
+        session_id=req.session_id,
+        user_id=user_id,
+        topic=session_data.get("topic", "General Vocabulary"),
+        evaluation=evaluation,
+    )
+
+    return VocabResult(
+        session_id=req.session_id,
+        result_id=result_id,
+        topic=session_data.get("topic", "General Vocabulary"),
+        completed_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ).isoformat(),
+        **evaluation,
+    )
+
+
+@app.get("/api/vocab/history")
+async def vocab_history(user_id: str = Depends(get_current_user_id)):
+    """Return the user's past vocabulary test results (latest 20)."""
+    entries = await get_vocab_history(user_id)
+    return {"entries": entries}
+
+
+@app.get("/api/vocab/result/{result_id}")
+async def vocab_result_detail(
+    result_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Full detail for one past vocabulary test result."""
+    detail = await get_vocab_result(result_id, user_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Result not found")
+    return detail
 
 
 if __name__ == "__main__":

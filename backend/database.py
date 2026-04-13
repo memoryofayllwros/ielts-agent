@@ -22,6 +22,8 @@ async def init_db():
     await _db.sessions.create_index([("user_id", 1), ("skill", 1)])
     await _db.results.create_index([("user_id", 1), ("completed_at", -1)])
     await _db.results.create_index([("user_id", 1), ("skill", 1)])
+    await _db.vocab_sessions.create_index([("user_id", 1)])
+    await _db.vocab_results.create_index([("user_id", 1), ("completed_at", -1)])
 
 
 async def close_db():
@@ -241,3 +243,86 @@ async def get_result_detail(result_id: str, user_id: str) -> Optional[dict]:
         "writing_task_summary": rd.get("writing_task_summary"),
     }
     return out
+
+
+# ── Vocabulary sessions & results ─────────────────────────────────────────────
+
+async def save_vocab_session(session_data: dict, user_id: str) -> str:
+    session_id = str(uuid.uuid4())
+    doc = {
+        "_id": session_id,
+        "user_id": user_id,
+        "topic": session_data.get("topic", "General Vocabulary"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "session_data": session_data,
+    }
+    await _db_handle().vocab_sessions.insert_one(doc)
+    return session_id
+
+
+async def get_vocab_session(session_id: str) -> Optional[dict]:
+    doc = await _db_handle().vocab_sessions.find_one({"_id": session_id})
+    return doc["session_data"] if doc else None
+
+
+async def save_vocab_result(
+    session_id: str,
+    user_id: str,
+    topic: str,
+    evaluation: dict,
+) -> str:
+    result_id = str(uuid.uuid4())
+    doc = {
+        "_id": result_id,
+        "session_id": session_id,
+        "user_id": user_id,
+        "topic": topic,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "estimated_level": evaluation["estimated_level"],
+        "estimated_vocab_size": evaluation["estimated_vocab_size"],
+        "percentage": evaluation["percentage"],
+        "evaluation": evaluation,
+    }
+    await _db_handle().vocab_results.insert_one(doc)
+    return result_id
+
+
+async def get_vocab_history(user_id: str, limit: int = 20) -> list[dict]:
+    cursor = _db_handle().vocab_results.find(
+        {"user_id": user_id},
+        {"_id": 1, "topic": 1, "completed_at": 1,
+         "estimated_level": 1, "estimated_vocab_size": 1, "percentage": 1},
+    ).sort("completed_at", -1).limit(limit)
+    return [
+        {
+            "result_id": doc["_id"],
+            "topic": doc["topic"],
+            "completed_at": doc["completed_at"],
+            "estimated_level": doc["estimated_level"],
+            "estimated_vocab_size": doc["estimated_vocab_size"],
+            "percentage": doc["percentage"],
+        }
+        async for doc in cursor
+    ]
+
+
+async def get_vocab_result(result_id: str, user_id: str) -> Optional[dict]:
+    doc = await _db_handle().vocab_results.find_one(
+        {"_id": result_id, "user_id": user_id}
+    )
+    if not doc:
+        return None
+    ev = doc.get("evaluation", {})
+    return {
+        "result_id": doc["_id"],
+        "session_id": doc["session_id"],
+        "topic": doc["topic"],
+        "completed_at": doc["completed_at"],
+        "estimated_level": doc["estimated_level"],
+        "estimated_vocab_size": doc["estimated_vocab_size"],
+        "percentage": doc["percentage"],
+        **{k: ev.get(k) for k in (
+            "total_correct", "total_questions",
+            "level_breakdown", "item_results",
+        )},
+    }

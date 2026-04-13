@@ -112,6 +112,55 @@ class SubmitResponse(BaseModel):
     question_results: List[QuestionResult]
 
 
+# ── Vocabulary test ───────────────────────────────────────────────────────────
+
+class VocabSubmitRequest(BaseModel):
+    session_id: str
+    answers: Dict[str, str]   # { "v1": "A", "v2": "C", … }
+
+
+class VocabLevelBreakdown(BaseModel):
+    level: str
+    correct: int
+    total: int
+    accuracy: Optional[float] = None
+
+
+class VocabItemResult(BaseModel):
+    question_id: str
+    word: str
+    level: str
+    user_answer: str
+    correct_answer: str
+    is_correct: bool
+    sentence: str
+    explanation: str
+    options: List[str]
+
+
+class VocabResult(BaseModel):
+    session_id: str
+    result_id: str
+    topic: str
+    completed_at: str
+    estimated_level: str
+    estimated_vocab_size: int
+    total_correct: int
+    total_questions: int
+    percentage: float
+    level_breakdown: List[VocabLevelBreakdown]
+    item_results: List[VocabItemResult]
+
+
+class VocabHistoryEntry(BaseModel):
+    result_id: str
+    topic: str
+    completed_at: str
+    estimated_level: str
+    estimated_vocab_size: int
+    percentage: float
+
+
 # ── Progress ──────────────────────────────────────────────────────────────────
 
 class ProgressEntry(BaseModel):
