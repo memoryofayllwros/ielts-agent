@@ -1,18 +1,27 @@
-from pydantic import BaseModel
-from typing import List, Optional, Dict
+from pydantic import BaseModel, Field, field_validator
+from typing import Any, List, Literal, Optional, Dict
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
     email: str
-    username: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 class AuthResponse(BaseModel):
@@ -25,8 +34,14 @@ class AuthResponse(BaseModel):
 
 # ── Practice ──────────────────────────────────────────────────────────────────
 
+SkillLiteral = Literal["reading", "listening", "writing", "speaking"]
+WritingTaskLiteral = Literal["write_essay", "summarize_written_text"]
+
+
 class GenerateRequest(BaseModel):
+    skill: SkillLiteral = "reading"
     topic: Optional[str] = None
+    writing_task_type: Optional[WritingTaskLiteral] = "write_essay"
 
 
 class Question(BaseModel):
@@ -51,6 +66,20 @@ class PracticeSession(BaseModel):
 class SubmitRequest(BaseModel):
     session_id: str
     answers: Dict[str, List[str]]
+
+
+class SubmitWritingRequest(BaseModel):
+    session_id: str
+    essay_text: str
+
+
+class SubmitSpeakingJsonRequest(BaseModel):
+    session_id: str
+    transcript: str
+
+
+class ListeningTtsRequest(BaseModel):
+    session_id: str
 
 
 class QuestionResult(BaseModel):
@@ -87,6 +116,7 @@ class ProgressEntry(BaseModel):
     percentage: float
     total_score: float
     max_score: float
+    skill: str = "reading"
 
 
 class ProgressResponse(BaseModel):
@@ -97,10 +127,16 @@ class ProgressResponse(BaseModel):
 
 class ResultDetail(BaseModel):
     id: str
+    skill: str = "reading"
     topic: str
     completed_at: str
     percentage: float
     total_score: float
     max_score: float
-    passage: Optional[str]
-    question_results: List[QuestionResult]
+    passage: Optional[str] = None
+    transcript: Optional[str] = None
+    question_results: List[QuestionResult] = Field(default_factory=list)
+    user_response: Optional[str] = None
+    evaluation: Optional[Dict[str, Any]] = None
+    speaking_task: Optional[Dict[str, Any]] = None
+    writing_task_summary: Optional[Dict[str, Any]] = None

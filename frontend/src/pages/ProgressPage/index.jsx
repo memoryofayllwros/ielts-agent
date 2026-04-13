@@ -52,7 +52,7 @@ function StatBox({ value, label }) {
 
 // ── Review view ───────────────────────────────────────────────────────────────
 
-function ReviewPassage({ passage }) {
+function ReviewPassage({ passage, title = "Passage" }) {
   if (!passage) return null;
   return (
     <Card sx={{ mb: 3, borderRadius: "16px" }}>
@@ -66,11 +66,46 @@ function ReviewPassage({ passage }) {
           display="block"
           sx={{ mb: 1.5 }}
         >
-          Reading Passage
+          {title}
         </Typography>
-        <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767" }}>
+        <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>
           {passage}
         </Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+function skillLabel(skill) {
+  const s = skill || "reading";
+  const map = { reading: "Reading", listening: "Listening", writing: "Writing", speaking: "Speaking" };
+  return map[s] || s;
+}
+
+function skillChipColor(skill) {
+  const s = skill || "reading";
+  if (s === "writing") return "primary";
+  if (s === "speaking") return "secondary";
+  if (s === "listening") return "info";
+  return "default";
+}
+
+function ReviewEvaluation({ evaluation }) {
+  if (!evaluation) return null;
+  return (
+    <Card sx={{ mb: 3, borderRadius: "16px" }}>
+      <CardContent sx={{ p: 3 }}>
+        <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase" display="block" sx={{ mb: 1 }}>
+          Feedback
+        </Typography>
+        <Typography variant="h6" fontWeight={700}>{evaluation.band}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{evaluation.overall_feedback}</Typography>
+        {(evaluation.category_scores || []).map((c) => (
+          <Box key={c.category} sx={{ mb: 1 }}>
+            <Typography variant="subtitle2" fontWeight={600}>{c.category}: {c.score}/{c.max_score}</Typography>
+            <Typography variant="body2" color="text.secondary">{c.feedback}</Typography>
+          </Box>
+        ))}
       </CardContent>
     </Card>
   );
@@ -132,7 +167,7 @@ function ReviewQuestion({ qr, index }) {
       return (
         <FormGroup>
           {options.map((opt) => {
-            const optKey = opt.match(/^([A-D])\./)?.[1] || opt[0];
+            const optKey = opt.match(/^([A-E])\./)?.[1] || opt[0];
             const isCorrect = correctSet.has(optKey);
             const isSelected = userSet.has(optKey);
             let bgColor = "transparent";
@@ -162,7 +197,7 @@ function ReviewQuestion({ qr, index }) {
     return (
       <RadioGroup value={userVal}>
         {options.map((opt) => {
-          const optKey = opt.match(/^([A-D])\./)?.[1] || opt[0];
+          const optKey = opt.match(/^([A-E])\./)?.[1] || opt[0];
           const isCorrect = correctVal === optKey;
           const isSelected = userVal === optKey;
           let bgColor = "transparent";
@@ -250,6 +285,7 @@ function ReviewQuestion({ qr, index }) {
 
 export default function ProgressPage() {
   const [view, setView] = useState("list"); // "list" | "review"
+  const [skillFilter, setSkillFilter] = useState(null);
   const [progress, setProgress] = useState(null);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState("");
@@ -262,14 +298,14 @@ export default function ProgressPage() {
     setLoadingList(true);
     setListError("");
     try {
-      const data = await fetchProgress();
+      const data = await fetchProgress(skillFilter || undefined);
       setProgress(data);
     } catch (err) {
       setListError(err.message || "Failed to load progress");
     } finally {
       setLoadingList(false);
     }
-  }, []);
+  }, [skillFilter]);
 
   useEffect(() => {
     loadProgress();
@@ -324,6 +360,7 @@ export default function ProgressPage() {
               Back
             </Button>
             <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+              <Chip label={skillLabel(reviewData?.skill)} color={skillChipColor(reviewData?.skill)} size="small" sx={{ fontWeight: 600 }} />
               <Chip label={topicLabel} sx={{ background: "#f0f2f5", fontWeight: 600 }} />
               <Typography variant="body2" color="text.secondary">{dateLabel}</Typography>
             </Box>
@@ -340,14 +377,57 @@ export default function ProgressPage() {
         )}
         {reviewError && <Alert severity="error" sx={{ mb: 2, borderRadius: "8px" }}>{reviewError}</Alert>}
 
-        {reviewData && (
-          <>
-            <ReviewPassage passage={reviewData.passage} />
-            {reviewData.question_results?.map((qr, i) => (
-              <ReviewQuestion key={qr.question_id} qr={qr} index={i} />
-            ))}
-          </>
-        )}
+        {reviewData && (() => {
+          const sk = reviewData.skill || "reading";
+          const isObjective = sk === "reading" || sk === "listening";
+          const isOpen = sk === "writing" || sk === "speaking";
+          return (
+            <>
+              {isObjective && (
+                <>
+                  <ReviewPassage
+                    passage={reviewData.passage || reviewData.transcript}
+                    title={sk === "listening" ? "Listening script" : "Reading passage"}
+                  />
+                  {(reviewData.question_results || []).map((qr, i) => (
+                    <ReviewQuestion key={qr.question_id || i} qr={qr} index={i} />
+                  ))}
+                </>
+              )}
+              {isOpen && (
+                <>
+                  {reviewData.writing_task_summary && (
+                    <ReviewPassage
+                      title={reviewData.writing_task_summary.task_type === "summarize_written_text" ? "Task 1 data" : "Task 2 question"}
+                      passage={
+                        reviewData.writing_task_summary.passage
+                        || reviewData.writing_task_summary.prompt
+                        || ""
+                      }
+                    />
+                  )}
+                  {reviewData.speaking_task && (
+                    <Card sx={{ mb: 3, borderRadius: "16px" }}>
+                      <CardContent>
+                        <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase" display="block" sx={{ mb: 1 }}>
+                          Speaking cue
+                        </Typography>
+                        <Typography variant="body1" fontWeight={600}>{reviewData.speaking_task.prompt}</Typography>
+                        {(reviewData.speaking_task.bullet_points || []).map((b, i) => (
+                          <Typography key={i} variant="body2" color="text.secondary">• {b}</Typography>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+                  {reviewData.user_response && (
+                    <ReviewPassage title="Your response" passage={reviewData.user_response} />
+                  )}
+                  <ReviewEvaluation evaluation={reviewData.evaluation} />
+                </>
+              )}
+            </>
+          );
+        })()}
       </Box>
     );
   }
@@ -361,7 +441,7 @@ export default function ProgressPage() {
 
       <Card sx={{ borderRadius: "16px" }}>
         <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
             <Typography variant="h6" fontWeight={700}>
               Your Progress
             </Typography>
@@ -373,6 +453,25 @@ export default function ProgressPage() {
             >
               Refresh
             </Button>
+          </Box>
+
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
+            {[
+              { label: "All", value: null },
+              { label: "Reading", value: "reading" },
+              { label: "Listening", value: "listening" },
+              { label: "Writing", value: "writing" },
+              { label: "Speaking", value: "speaking" },
+            ].map((opt) => (
+              <Chip
+                key={String(opt.value)}
+                label={opt.label}
+                onClick={() => setSkillFilter(opt.value)}
+                color={skillFilter === opt.value ? "primary" : "default"}
+                variant={skillFilter === opt.value ? "filled" : "outlined"}
+                sx={{ fontWeight: 600 }}
+              />
+            ))}
           </Box>
 
           {/* Stats */}
@@ -408,6 +507,7 @@ export default function ProgressPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Skill</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Topic</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Score</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Result</TableCell>
@@ -423,6 +523,9 @@ export default function ProgressPage() {
                     >
                       <TableCell sx={{ color: "#7B809A", fontSize: "0.8rem" }}>
                         {formatDate(entry.completed_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={skillLabel(entry.skill)} size="small" color={skillChipColor(entry.skill)} sx={{ fontWeight: 600 }} />
                       </TableCell>
                       <TableCell sx={{ fontWeight: 500, color: "#344767" }}>
                         {entry.topic}

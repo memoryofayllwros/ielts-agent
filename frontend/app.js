@@ -82,7 +82,6 @@ async function handleSignIn(e) {
 
 async function handleSignUp(e) {
   e.preventDefault();
-  const username = document.getElementById('signup-username').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
   const errEl = document.getElementById('signup-error');
@@ -96,7 +95,7 @@ async function handleSignUp(e) {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Registration failed');

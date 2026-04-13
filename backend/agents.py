@@ -16,7 +16,6 @@ the actual practice content as JSON.
 """
 
 import json
-import re
 from typing import Optional
 
 from ai import _get_client, MODEL, _extract_json
@@ -342,4 +341,216 @@ async def evaluate_writing(task: dict, user_text: str) -> dict:
         result["max_score"] = max_total
         result["percentage"] = round(total / max_total * 100, 1)
 
+    return result
+
+
+# ── Listening agent ───────────────────────────────────────────────────────────
+
+_LISTENING_SYSTEM = """\
+You are an expert IELTS Listening test creator.
+Generate authentic practice: a script the student would hear (monologue or dialogue with speaker labels),
+plus comprehension questions in the same JSON shapes as IELTS reading-style items.
+Always return valid JSON exactly matching the schema in the user message.
+Return ONLY the raw JSON object — no markdown fences, no explanation."""
+
+
+def _build_listening_prompt(topic: Optional[str]) -> str:
+    topic_line = (
+        f"Topic: {topic}"
+        if topic
+        else "Choose an everyday or academic listening context (campus, travel, interview, lecture excerpt, etc.)"
+    )
+    return f"""\
+Create an IELTS Listening practice session (script only — audio may be synthesised separately).
+
+{topic_line}
+
+The "transcript" field must be 180-260 words, natural speech, with lines like "A: ..." and "B: ..." for dialogues
+or a single speaker for monologues. Questions test what was heard (not prior knowledge).
+
+Return a JSON object with exactly these fields:
+
+{{
+  "transcript": "<full script to be read aloud>",
+  "topic": "<2-4 word topic name>",
+  "questions": [
+    {{
+      "id": "q1",
+      "type": "fill_in_blanks",
+      "passage_with_blanks": "<summary of what was heard with 3 words replaced by [BLANK_1], [BLANK_2], [BLANK_3]>",
+      "word_bank": ["<7-8 words: 3 correct + distractors, shuffled>"],
+      "question": null,
+      "options": null,
+      "correct_answers": ["<word for BLANK_1>", "<word for BLANK_2>", "<word for BLANK_3>"],
+      "explanation": "<why each blank matches the audio>"
+    }},
+    {{
+      "id": "q2",
+      "type": "mc_single",
+      "passage_with_blanks": null,
+      "word_bank": null,
+      "question": "<question about specific information from the audio>",
+      "options": ["A. <text>", "B. <text>", "C. <text>", "D. <text>"],
+      "correct_answers": ["<letter>"],
+      "explanation": "<brief explanation>"
+    }},
+    {{
+      "id": "q3",
+      "type": "mc_multiple",
+      "passage_with_blanks": null,
+      "word_bank": null,
+      "question": "<identify TWO correct statements based on the audio>",
+      "options": ["A. <text>", "B. <text>", "C. <text>", "D. <text>", "E. <text>"],
+      "correct_answers": ["<letter>", "<letter>"],
+      "explanation": "<brief explanation>"
+    }}
+  ]
+}}"""
+
+
+async def listening_agent(topic: Optional[str]) -> dict:
+    client = _get_client()
+    prompt = _build_listening_prompt(topic)
+    response = await client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": _LISTENING_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=4000,
+    )
+    text = response.choices[0].message.content
+    if not text:
+        raise ValueError("Empty response from listening agent")
+    data = _extract_json(text)
+    data["passage"] = data.get("transcript", "")
+    return data
+
+
+# ── Speaking agent ────────────────────────────────────────────────────────────
+
+_SPEAKING_SYSTEM = """\
+You are an expert IELTS Speaking examiner and test designer.
+Generate Part 2 cue-card style practice with clear timing and assessment criteria.
+Return ONLY valid JSON — no markdown, no explanation outside the JSON."""
+
+
+def _build_speaking_prompt(topic: Optional[str]) -> str:
+    topic_line = (
+        f"Theme hint: {topic}"
+        if topic
+        else "Choose a common IELTS Part 2 theme (person, place, object, event, experience)."
+    )
+    return f"""\
+Create an IELTS Speaking Part 2 practice task.
+
+{topic_line}
+
+Return a JSON object with exactly these fields:
+{{
+  "part": 2,
+  "topic": "<short topic label>",
+  "prompt": "<main cue: Describe ... You should say:>",
+  "bullet_points": ["<point 1>", "<point 2>", "<point 3>", "<point 4>"],
+  "prep_seconds": 60,
+  "speak_seconds": 120,
+  "follow_up_questions": ["<Part 3 style question 1>", "<question 2>"],
+  "model_outline": ["<key idea 1 for a strong answer>", "<key idea 2>", "<key idea 3>"],
+  "assessment_criteria": [
+    {{"category": "Fluency & Coherence", "max_score": 3, "descriptor": "Natural pace; coherence; hesitation"}},
+    {{"category": "Lexical Resource", "max_score": 2, "descriptor": "Range and precision of vocabulary"}},
+    {{"category": "Grammatical Range & Accuracy", "max_score": 2, "descriptor": "Variety and control of structures"}},
+    {{"category": "Pronunciation (inferred from transcript only)", "max_score": 2, "descriptor": "Approximate from text: clarity of word forms and chunking cues"}}
+  ]
+}}"""
+
+
+async def speaking_agent(topic: Optional[str]) -> dict:
+    client = _get_client()
+    prompt = _build_speaking_prompt(topic)
+    response = await client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": _SPEAKING_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=2500,
+    )
+    text = response.choices[0].message.content
+    if not text:
+        raise ValueError("Empty response from speaking agent")
+    return _extract_json(text)
+
+
+# ── Speaking evaluator ────────────────────────────────────────────────────────
+
+_SPEAK_EVAL_SYSTEM = """\
+You are an expert IELTS Speaking examiner.
+The student's answer is provided as TEXT ONLY (from speech-to-text). Scores for pronunciation are approximate
+and must be labelled as inferred from the transcript — do not claim you heard audio.
+Return ONLY valid JSON — no markdown."""
+
+
+def _build_speak_eval_prompt(task: dict, transcript: str) -> str:
+    criteria_text = "\n".join(
+        f"  - {c['category']} (max {c['max_score']}): {c['descriptor']}"
+        for c in task.get("assessment_criteria", [])
+    )
+    total_max = sum(c["max_score"] for c in task.get("assessment_criteria", []))
+    bullets = "\n".join(f"  - {b}" for b in task.get("bullet_points", []))
+    return f"""\
+Evaluate this IELTS Speaking Part 2 response (transcript from speech recognition; may contain errors).
+
+CUE CARD:
+Topic: {task.get('topic', '')}
+{task.get('prompt', '')}
+You should say:
+{bullets}
+
+STUDENT TRANSCRIPT (may be imperfect):
+{transcript}
+
+CRITERIA:
+{criteria_text}
+
+Return a JSON object with exactly these fields:
+{{
+  "total_score": <integer>,
+  "max_score": {total_max},
+  "percentage": <float 0-100 one decimal>,
+  "band": "<Excellent | Good | Satisfactory | Needs Improvement | Poor>",
+  "overall_feedback": "<2-3 sentences; note if limited by transcript quality>",
+  "category_scores": [
+    {{"category": "<name>", "score": <int>, "max_score": <int>, "feedback": "<one sentence>"}}
+  ],
+  "strengths": ["<s1>", "<s2>"],
+  "improvements": ["<i1>", "<i2>", "<i3>"],
+  "better_answer_snippet": "<example improved 2-3 sentences on-topic>"
+}}"""
+
+
+async def evaluate_speaking(task: dict, transcript: str) -> dict:
+    client = _get_client()
+    prompt = _build_speak_eval_prompt(task, transcript)
+    response = await client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": _SPEAK_EVAL_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=2000,
+    )
+    text = response.choices[0].message.content
+    if not text:
+        raise ValueError("Empty response from speaking evaluator")
+    result = _extract_json(text)
+    total = sum(c.get("score", 0) for c in result.get("category_scores", []))
+    max_total = sum(c.get("max_score", 0) for c in result.get("category_scores", []))
+    if max_total > 0:
+        result["total_score"] = total
+        result["max_score"] = max_total
+        result["percentage"] = round(total / max_total * 100, 1)
     return result

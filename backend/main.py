@@ -1,25 +1,34 @@
-import os
 from contextlib import asynccontextmanager
+from typing import Optional
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, File, Form, UploadFile
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pathlib import Path
 
 from models import (
     RegisterRequest, LoginRequest, AuthResponse,
     GenerateRequest, SubmitRequest, SubmitResponse,
+    SubmitWritingRequest, SubmitSpeakingJsonRequest, ListeningTtsRequest,
     QuestionResult, ProgressResponse, ProgressEntry, ResultDetail,
 )
 from ai import generate_practice_session
+from agents import (
+    listening_agent,
+    writing_agent,
+    speaking_agent,
+    evaluate_writing,
+    evaluate_speaking,
+)
 from auth import hash_password, verify_password, create_access_token, get_current_user_id
 from database import (
     init_db, close_db,
     create_user, get_user_by_email,
-    save_session, get_session,
+    save_session, get_session_record,
     save_result, get_progress, get_result_detail,
 )
 
@@ -31,11 +40,10 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title="IELTS Reading Agent", lifespan=lifespan)
+app = FastAPI(title="IELTS Practice Agent", lifespan=lifespan)
 
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
-# Serve built React app — HashRouter means the server only needs to serve /
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
 
@@ -55,7 +63,7 @@ async def register(req: RegisterRequest):
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     if await get_user_by_email(req.email):
         raise HTTPException(status_code=400, detail="Email already registered")
-    user = await create_user(req.email, req.username, hash_password(req.password))
+    user = await create_user(req.email, hash_password(req.password))
     return AuthResponse(
         access_token=create_access_token(user["id"]),
         user_id=user["id"],
@@ -77,18 +85,8 @@ async def login(req: LoginRequest):
     )
 
 
-# ── Practice ──────────────────────────────────────────────────────────────────
-
-@app.post("/api/practice/generate")
-async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user_id)):
-    try:
-        raw = await generate_practice_session(req.topic)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
-
-    session_id = await save_session(raw, user_id)
-
-    questions_safe = [
+def _questions_safe(raw: dict) -> list:
+    return [
         {
             "id": q["id"],
             "type": q["type"],
@@ -100,20 +98,55 @@ async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user
         for q in raw.get("questions", [])
     ]
 
-    return {
-        "session_id": session_id,
-        "passage": raw["passage"],
-        "topic": raw["topic"],
-        "questions": questions_safe,
-    }
+
+# ── Practice ──────────────────────────────────────────────────────────────────
+
+@app.post("/api/practice/generate")
+async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user_id)):
+    skill = req.skill
+    try:
+        if skill == "reading":
+            raw = await generate_practice_session(req.topic)
+        elif skill == "listening":
+            raw = await listening_agent(req.topic)
+        elif skill == "writing":
+            wtype = req.writing_task_type or "write_essay"
+            raw = await writing_agent(req.topic, wtype)
+        else:
+            raw = await speaking_agent(req.topic)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+    session_id = await save_session(raw, user_id, skill=skill)
+
+    if skill in ("reading", "listening"):
+        return {
+            "session_id": session_id,
+            "skill": skill,
+            "topic": raw["topic"],
+            "passage": raw.get("passage", ""),
+            "transcript": raw.get("transcript") if skill == "listening" else None,
+            "questions": _questions_safe(raw),
+        }
+
+    if skill == "writing":
+        client_payload = {k: v for k, v in raw.items() if k != "model_answer"}
+        return {"session_id": session_id, "skill": skill, **client_payload}
+
+    client_sp = {k: v for k, v in raw.items() if k != "model_outline"}
+    return {"session_id": session_id, "skill": skill, **client_sp}
 
 
 @app.post("/api/practice/submit", response_model=SubmitResponse)
 async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)):
-    session = await get_session(req.session_id)
-    if not session:
+    rec = await get_session_record(req.session_id)
+    if not rec or rec["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Session not found")
+    skill = rec.get("skill") or "reading"
+    if skill not in ("reading", "listening"):
+        raise HTTPException(status_code=400, detail="Use the writing or speaking submit endpoint for this session")
 
+    session = rec["session_data"]
     question_results = []
     total_earned = 0.0
     total_max = 0.0
@@ -153,6 +186,7 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
         total_score=total_earned,
         max_score=total_max,
         result_data={"question_results": [r.model_dump() for r in question_results]},
+        skill=skill,
     )
 
     return SubmitResponse(
@@ -165,6 +199,159 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
     )
 
 
+@app.post("/api/practice/submit-writing")
+async def submit_writing(req: SubmitWritingRequest, user_id: str = Depends(get_current_user_id)):
+    rec = await get_session_record(req.session_id)
+    if not rec or rec["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if rec.get("skill") != "writing":
+        raise HTTPException(status_code=400, detail="Not a writing session")
+
+    session = rec["session_data"]
+    text = req.essay_text.strip()
+    if len(text) < 10:
+        raise HTTPException(status_code=400, detail="Response too short")
+
+    try:
+        evaluation = await evaluate_writing(session, text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+
+    pct = float(evaluation.get("percentage", 0))
+    ts = float(evaluation.get("total_score", 0))
+    ms = float(evaluation.get("max_score", 1))
+
+    summary = {
+        "task_type": session.get("task_type"),
+        "prompt": session.get("prompt"),
+        "passage": session.get("passage"),
+    }
+
+    await save_result(
+        session_id=req.session_id,
+        user_id=user_id,
+        topic=session.get("topic", "Writing"),
+        percentage=pct,
+        total_score=ts,
+        max_score=ms,
+        result_data={
+            "user_response": text,
+            "evaluation": evaluation,
+            "writing_task_summary": summary,
+        },
+        skill="writing",
+    )
+
+    return {"session_id": req.session_id, "topic": session.get("topic"), "evaluation": evaluation}
+
+
+async def _submit_speaking_impl(
+    user_id: str,
+    session_id: str,
+    transcript: Optional[str],
+    audio: Optional[UploadFile],
+) -> dict:
+    rec = await get_session_record(session_id)
+    if not rec or rec["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if rec.get("skill") != "speaking":
+        raise HTTPException(status_code=400, detail="Not a speaking session")
+
+    session = rec["session_data"]
+    text = (transcript or "").strip()
+
+    if audio and audio.filename:
+        content = await audio.read()
+        if len(content) > 25 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Audio file too large")
+        if not text:
+            try:
+                from speech_openai import transcribe_audio_bytes
+                text = await transcribe_audio_bytes(content, audio.filename or "audio.webm")
+            except RuntimeError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not transcribe audio. Check OPENROUTER_API_KEY or paste a transcript.",
+                )
+
+    if not text:
+        raise HTTPException(status_code=400, detail="Provide audio or a transcript")
+
+    if len(text) < 5:
+        raise HTTPException(status_code=400, detail="Transcript too short")
+
+    try:
+        evaluation = await evaluate_speaking(session, text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+
+    pct = float(evaluation.get("percentage", 0))
+    ts = float(evaluation.get("total_score", 0))
+    ms = float(evaluation.get("max_score", 1))
+
+    speaking_task = {
+        "part": session.get("part"),
+        "topic": session.get("topic"),
+        "prompt": session.get("prompt"),
+        "bullet_points": session.get("bullet_points"),
+    }
+
+    await save_result(
+        session_id=session_id,
+        user_id=user_id,
+        topic=session.get("topic", "Speaking"),
+        percentage=pct,
+        total_score=ts,
+        max_score=ms,
+        result_data={
+            "user_response": text,
+            "evaluation": evaluation,
+            "speaking_task": speaking_task,
+        },
+        skill="speaking",
+    )
+
+    return {"session_id": session_id, "topic": session.get("topic"), "evaluation": evaluation}
+
+
+@app.post("/api/practice/submit-speaking")
+async def submit_speaking(
+    user_id: str = Depends(get_current_user_id),
+    session_id: str = Form(...),
+    transcript: Optional[str] = Form(None),
+    audio: Optional[UploadFile] = File(None),
+):
+    return await _submit_speaking_impl(user_id, session_id, transcript, audio)
+
+
+@app.post("/api/practice/submit-speaking-json")
+async def submit_speaking_json(req: SubmitSpeakingJsonRequest, user_id: str = Depends(get_current_user_id)):
+    """JSON body alternative when not uploading audio (e.g. Web Speech API transcript)."""
+    return await _submit_speaking_impl(user_id, req.session_id, req.transcript, None)
+
+
+@app.post("/api/listening/tts")
+async def listening_tts(req: ListeningTtsRequest, user_id: str = Depends(get_current_user_id)):
+    sid = req.session_id
+    rec = await get_session_record(sid)
+    if not rec or rec["user_id"] != user_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if rec.get("skill") != "listening":
+        raise HTTPException(status_code=400, detail="Not a listening session")
+    transcript = rec["session_data"].get("transcript") or ""
+    if not transcript.strip():
+        raise HTTPException(status_code=400, detail="No transcript for this session")
+    try:
+        from speech_openai import synthesize_speech_mp3_cached
+        data = await synthesize_speech_mp3_cached(transcript)
+    except RuntimeError:
+        raise HTTPException(
+            status_code=503,
+            detail="Server TTS unavailable (OpenRouter audio models). Use browser text-to-speech instead.",
+        )
+    return Response(content=data, media_type="audio/mpeg")
+
+
 @app.get("/api/results/{result_id}", response_model=ResultDetail)
 async def result_detail(result_id: str, user_id: str = Depends(get_current_user_id)):
     detail = await get_result_detail(result_id, user_id)
@@ -174,8 +361,11 @@ async def result_detail(result_id: str, user_id: str = Depends(get_current_user_
 
 
 @app.get("/api/progress", response_model=ProgressResponse)
-async def progress(user_id: str = Depends(get_current_user_id)):
-    entries_raw = await get_progress(user_id=user_id, limit=50)
+async def progress(
+    user_id: str = Depends(get_current_user_id),
+    skill: Optional[str] = None,
+):
+    entries_raw = await get_progress(user_id=user_id, limit=50, skill=skill)
     entries = [ProgressEntry(**e) for e in entries_raw]
     avg = round(sum(e.percentage for e in entries) / len(entries), 1) if entries else 0.0
     return ProgressResponse(entries=entries, total_sessions=len(entries), average_percentage=avg)

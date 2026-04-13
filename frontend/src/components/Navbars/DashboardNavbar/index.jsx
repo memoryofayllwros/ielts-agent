@@ -40,7 +40,7 @@ function DashboardNavbar({ title }) {
           {user && (
             <Chip
               icon={<PersonIcon sx={{ fontSize: "1rem !important" }} />}
-              label={user.username || user.email}
+              label={user.email || user.username}
               size="small"
               sx={{
                 background: "#f0f2f5",

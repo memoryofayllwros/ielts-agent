@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,7 +19,9 @@ async def init_db():
     _db = _client[DB_NAME]
     await _db.users.create_index("email", unique=True)
     await _db.sessions.create_index([("user_id", 1)])
+    await _db.sessions.create_index([("user_id", 1), ("skill", 1)])
     await _db.results.create_index([("user_id", 1), ("completed_at", -1)])
+    await _db.results.create_index([("user_id", 1), ("skill", 1)])
 
 
 async def close_db():
@@ -36,21 +39,29 @@ def _db_handle() -> AsyncIOMotorDatabase:
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 
-async def create_user(email: str, username: str, hashed_password: str) -> dict:
+async def create_user(email: str, hashed_password: str) -> dict:
     user_id = str(uuid.uuid4())
+    email = email.strip().lower()
     doc = {
         "_id": user_id,
         "email": email,
-        "username": username,
+        "username": email,
         "hashed_password": hashed_password,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await _db_handle().users.insert_one(doc)
-    return {"id": user_id, "email": email, "username": username}
+    return {"id": user_id, "email": email, "username": email}
 
 
 async def get_user_by_email(email: str) -> Optional[dict]:
-    return await _db_handle().users.find_one({"email": email})
+    db = _db_handle()
+    normalized = email.strip().lower()
+    doc = await db.users.find_one({"email": normalized})
+    if doc:
+        return doc
+    # Accounts created before email normalization may store mixed-case addresses.
+    pattern = re.escape(email.strip())
+    return await db.users.find_one({"email": {"$regex": f"^{pattern}$", "$options": "i"}})
 
 
 async def get_user_by_id(user_id: str) -> Optional[dict]:
@@ -59,11 +70,12 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
 
 # ── Sessions ──────────────────────────────────────────────────────────────────
 
-async def save_session(session_data: dict, user_id: str) -> str:
+async def save_session(session_data: dict, user_id: str, skill: str = "reading") -> str:
     session_id = str(uuid.uuid4())
     doc = {
         "_id": session_id,
         "user_id": user_id,
+        "skill": skill,
         "topic": session_data["topic"],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "session_data": session_data,
@@ -77,6 +89,11 @@ async def get_session(session_id: str) -> Optional[dict]:
     return doc["session_data"] if doc else None
 
 
+async def get_session_record(session_id: str) -> Optional[dict]:
+    """Full session document including skill and user_id."""
+    return await _db_handle().sessions.find_one({"_id": session_id})
+
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 async def save_result(
@@ -87,12 +104,14 @@ async def save_result(
     total_score: float,
     max_score: float,
     result_data: dict,
+    skill: str = "reading",
 ) -> str:
     result_id = str(uuid.uuid4())
     doc = {
         "_id": result_id,
         "session_id": session_id,
         "user_id": user_id,
+        "skill": skill,
         "topic": topic,
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "percentage": percentage,
@@ -104,11 +123,17 @@ async def save_result(
     return result_id
 
 
-async def get_progress(user_id: str, limit: int = 50) -> list[dict]:
+async def get_progress(user_id: str, limit: int = 50, skill: Optional[str] = None) -> list[dict]:
+    query: dict = {"user_id": user_id}
+    if skill:
+        if skill == "reading":
+            query["$or"] = [{"skill": "reading"}, {"skill": {"$exists": False}}]
+        else:
+            query["skill"] = skill
     cursor = _db_handle().results.find(
-        {"user_id": user_id},
+        query,
         {"_id": 1, "session_id": 1, "topic": 1, "completed_at": 1,
-         "percentage": 1, "total_score": 1, "max_score": 1},
+         "percentage": 1, "total_score": 1, "max_score": 1, "skill": 1},
     ).sort("completed_at", -1).limit(limit)
 
     return [
@@ -120,6 +145,7 @@ async def get_progress(user_id: str, limit: int = 50) -> list[dict]:
             "percentage": doc["percentage"],
             "total_score": doc["total_score"],
             "max_score": doc["max_score"],
+            "skill": doc.get("skill") or "reading",
         }
         async for doc in cursor
     ]
@@ -129,15 +155,30 @@ async def get_result_detail(result_id: str, user_id: str) -> Optional[dict]:
     result = await _db_handle().results.find_one({"_id": result_id, "user_id": user_id})
     if not result:
         return None
+    skill = result.get("skill") or "reading"
+    rd = result.get("result_data") or {}
     session = await _db_handle().sessions.find_one({"_id": result["session_id"]})
-    passage = session["session_data"]["passage"] if session else None
-    return {
+    sd = session["session_data"] if session else {}
+
+    passage = sd.get("passage")
+    transcript = sd.get("transcript")
+    if skill == "listening" and transcript and not passage:
+        passage = transcript
+
+    out = {
         "id": result["_id"],
+        "skill": skill,
         "topic": result["topic"],
         "completed_at": result["completed_at"],
         "percentage": result["percentage"],
         "total_score": result["total_score"],
         "max_score": result["max_score"],
         "passage": passage,
-        "question_results": result["result_data"]["question_results"],
+        "transcript": transcript if skill == "listening" else None,
+        "question_results": rd.get("question_results") or [],
+        "user_response": rd.get("user_response"),
+        "evaluation": rd.get("evaluation"),
+        "speaking_task": rd.get("speaking_task"),
+        "writing_task_summary": rd.get("writing_task_summary"),
     }
+    return out

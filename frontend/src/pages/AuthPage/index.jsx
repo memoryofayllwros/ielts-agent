@@ -28,7 +28,6 @@ export default function AuthPage() {
 
   // Sign up fields
   const [signUpEmail, setSignUpEmail] = useState("");
-  const [signUpUsername, setSignUpUsername] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
 
   const handleSignIn = async (e) => {
@@ -54,7 +53,7 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      await register(signUpEmail, signUpUsername, signUpPassword);
+      await register(signUpEmail, signUpPassword);
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -101,10 +100,10 @@ export default function AuthPage() {
               📖
             </Box>
             <Typography variant="h5" fontWeight={700} color="text.primary">
-              IELTS Reading
+              IELTS Practice
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Practice smarter, score higher
+              Reading, Listening, Writing & Speaking
             </Typography>
           </Box>
 
@@ -168,15 +167,6 @@ export default function AuthPage() {
           {/* Sign Up Form */}
           {tab === 1 && (
             <Box component="form" onSubmit={handleSignUp} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <TextField
-                label="Username"
-                value={signUpUsername}
-                onChange={(e) => setSignUpUsername(e.target.value)}
-                required
-                fullWidth
-                size="small"
-                inputProps={{ maxLength: 40 }}
-              />
               <TextField
                 label="Email"
                 type="email"

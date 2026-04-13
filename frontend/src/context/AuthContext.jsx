@@ -22,8 +22,8 @@ export function AuthProvider({ children }) {
     return session;
   }, []);
 
-  const register = useCallback(async (email, username, password) => {
-    const session = await registerUser(email, username, password);
+  const register = useCallback(async (email, password) => {
+    const session = await registerUser(email, password);
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setUser(session);
     return session;

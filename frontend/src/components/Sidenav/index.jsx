@@ -64,14 +64,14 @@ function Sidenav({ routes }) {
             variant="h6"
             sx={{ fontWeight: 700, color: "#344767", lineHeight: 1.2 }}
           >
-            IELTS Reading
+            IELTS Practice
             <Typography
               component="span"
               variant="caption"
               display="block"
               sx={{ color: "#7B809A", fontWeight: 400 }}
             >
-              Practice
+              All four skills
             </Typography>
           </Typography>
         )}

@@ -10,7 +10,11 @@ import { useMaterialUIController, setLayout } from "context";
 import { useAuth } from "context/AuthContext";
 
 import AuthPage from "pages/AuthPage";
-import PracticePage from "pages/PracticePage";
+import PracticeHub from "pages/PracticeHub";
+import ReadingPracticePage from "pages/ReadingPracticePage";
+import ListeningPracticePage from "pages/ListeningPracticePage";
+import WritingPracticePage from "pages/WritingPracticePage";
+import SpeakingPracticePage from "pages/SpeakingPracticePage";
 import ProgressPage from "pages/ProgressPage";
 
 const NAV_ROUTES = [
@@ -59,7 +63,55 @@ export default function App() {
             <ProtectedRoute>
               <DashboardLayout>
                 <MainContent>
-                  <PracticePage />
+                  <PracticeHub />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/practice/reading"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <ReadingPracticePage />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/practice/listening"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <ListeningPracticePage />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/practice/writing"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <WritingPracticePage />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/practice/speaking"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <SpeakingPracticePage />
                 </MainContent>
               </DashboardLayout>
             </ProtectedRoute>
