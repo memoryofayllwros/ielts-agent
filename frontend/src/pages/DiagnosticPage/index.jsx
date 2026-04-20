@@ -227,7 +227,7 @@ export default function DiagnosticPage() {
         key={`diag-listening-${diagSession.session_id}`}
         skill="listening"
         navbarTitle={`Diagnostic — ${LABELS[activeIndex]}`}
-        contentLabel="Listening script"
+        contentLabel="Audio"
         intro=""
         loadingBlurb="Generating diagnostic listening…"
         {...commonContinue}

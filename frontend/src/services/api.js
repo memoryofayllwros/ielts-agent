@@ -21,7 +21,8 @@ function messageFromDetail(data, fallback) {
 }
 
 async function request(path, options = {}) {
-  const token = getToken();
+  const isCredentialsRequest = path === "/auth/login" || path === "/auth/register";
+  const token = isCredentialsRequest ? null : getToken();
   const headers = { "Content-Type": "application/json", ...options.headers };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -29,7 +30,6 @@ async function request(path, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (res.status === 401) {
-    const isCredentialsRequest = path === "/auth/login" || path === "/auth/register";
     if (isCredentialsRequest) {
       throw new Error(messageFromDetail(data, "Invalid email or password"));
     }
@@ -43,6 +43,15 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     throw new Error(messageFromDetail(data, `Request failed: ${res.status}`));
+  }
+  if (
+    isCredentialsRequest &&
+    res.ok &&
+    (typeof data?.access_token !== "string" || !data.access_token)
+  ) {
+    throw new Error(
+      "Unexpected response from server (missing token). Is the API proxy pointing at the backend on port 8000?)",
+    );
   }
   return data;
 }

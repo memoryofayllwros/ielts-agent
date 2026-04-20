@@ -1,446 +1,481 @@
-Below is an **improved version of your README markdown**.
-I preserved your structure but improved:
+下面是对你提供的材料做的**结构化系统级总结（architecture + functional specification）**，我做了三层抽象：
 
-* clarity
-* professional documentation tone
-* architecture explanation
-* added **Diagnostic Test** (baseline assessment)
-* added **adaptive practice concept**
-* improved **API description**
-* improved **system flow explanation**
+1. **产品目标与学习闭环**
+2. **系统架构（logical + service decomposition）**
+3. **核心功能模块说明（按AI教育系统分层）**
 
-Nothing in the design contradicts your current codebase.
-
-You can paste this directly into `README.md`.
+尽量去掉“README叙述风格”，提升为**可用于系统设计文档 / 技术方案说明**的版本。
 
 ---
 
-# IELTS Practice Agent
+# 1. System Overview（系统目标）
 
-An **AI-powered IELTS practice platform** for training all four IELTS skills:
+该系统是一个 **AI 驱动的 IELTS 自适应学习平台（Adaptive IELTS Trainer）**，核心目标是：
 
-* **Reading**
-* **Listening**
-* **Writing**
-* **Speaking**
+> 将用户从当前 IELTS 水平，通过诊断 + 动态训练 + AI评估，持续推进到更高 band（如 Band 6 → 7）。
 
-The system generates practice tasks using LLMs via OpenRouter, evaluates answers automatically (objective scoring or rubric-based feedback), and stores user progress in MongoDB.
+### 核心学习闭环
 
-A **diagnostic test** determines each user's baseline band level, enabling **adaptive practice difficulty** for more effective training.
-
----
-
-# Features
-
-## Diagnostic Test (Baseline Assessment)
-
-On first use, the system can run a short **diagnostic test** to estimate the user's IELTS band level across all four skills.
-
-Diagnostic structure:
-
-| Skill     | Task                             |
-| --------- | -------------------------------- |
-| Reading   | Short passage + 5 questions      |
-| Listening | Short audio script + 5 questions |
-| Writing   | Short Task 2 essay               |
-| Speaking  | Cue card response                |
-
-The estimated baseline band score is stored in the user profile and used to guide practice difficulty.
-
----
-
-## Reading Practice
-
-* Academic IELTS-style passages
-* Question types:
-
-  * Gap-fill
-  * Multiple choice
-* Server-side answer grading
-* Detailed result tracking
-
----
-
-## Listening Practice
-
-* Generated listening scripts
-* Audio playback options:
-
-  * Browser **Text-to-Speech**
-  * Optional **server TTS** via OpenRouter
-* Objective question grading (same types as reading)
-
----
-
-## Writing Practice
-
-Supports both IELTS writing tasks:
-
-* **Task 1** — data report
-* **Task 2** — argumentative essay
-
-AI evaluates writing using IELTS-style rubric criteria:
-
-* Task Response
-* Coherence & Cohesion
-* Lexical Resource
-* Grammatical Range & Accuracy
-
-Structured feedback and band estimation are returned.
-
----
-
-## Speaking Practice
-
-Simulates **IELTS Speaking Part 2**:
-
-* Cue card prompt
-* 1 minute preparation
-* Spoken answer
-
-Input options:
-
-* Record audio
-* Upload audio
-* Dictate transcript
-* Type response
-
-Audio can be transcribed via OpenRouter STT before evaluation.
-
-Speaking feedback includes approximate scoring for:
-
-* Fluency
-* Lexical resource
-* Grammar
-* Pronunciation (estimated from transcript)
-
----
-
-## Authentication & Progress Tracking
-
-* Secure login with JWT
-* Track practice history
-* Filter progress by skill
-* Review detailed results
-
----
-
-# Tech Stack
-
-| Layer                      | Technology                                     |
-| -------------------------- | ---------------------------------------------- |
-| AI generation & evaluation | Claude via [OpenRouter](https://openrouter.ai) |
-| STT / TTS (optional)       | OpenRouter multimodal APIs                     |
-| Backend                    | Python · FastAPI · Uvicorn                     |
-| Authentication             | JWT (`PyJWT`) · bcrypt                         |
-| Database                   | MongoDB (`motor`)                              |
-| Frontend                   | React 18 · MUI v5 · React Router v6 · Vite     |
-
----
-
-# System Architecture
+系统的本质是一个 closed-loop learning system：
 
 ```
-Frontend (React)
-        │
-        ▼
-FastAPI Backend
-        │
-        ├── Practice Generation (LLM)
-        ├── Answer Evaluation
-        ├── Speech Processing
-        │
-        ▼
-MongoDB
-        ├── Users
-        ├── Practice Sessions
-        ├── Results
-        └── Diagnostic Scores
-```
-
-### Key Design Principles
-
-* **Server-side answer validation**
-* **Hidden answers stored in database**
-* **Session-based practice tracking**
-* **LLM evaluation for open-ended tasks**
-
----
-
-# Environment Variables
-
-Create a `.env` file in the project root:
-
-| Variable                      | Required         | Purpose                               |
-| ----------------------------- | ---------------- | ------------------------------------- |
-| `OPENROUTER_API_KEY`          | Yes              | LLM content generation and evaluation |
-| `MONGODB_URL`                 | Yes              | MongoDB connection string             |
-| `JWT_SECRET`                  | Yes (production) | JWT signing key                       |
-| `OPENROUTER_TRANSCRIBE_MODEL` | No               | Model for audio → text transcription  |
-| `OPENROUTER_TTS_MODEL`        | No               | Model for server text-to-speech       |
-
-Defaults:
-
-```
-OPENROUTER_TRANSCRIBE_MODEL=google/gemini-2.0-flash-001
-OPENROUTER_TTS_MODEL=openai/gpt-4o-mini
+Diagnostic Assessment
+        ↓
+Skill-specific Practice Generation
+        ↓
+User Response Collection
+        ↓
+AI-based Evaluation (rubric / objective)
+        ↓
+Weakness Detection
+        ↓
+Adaptive Next Exercise Generation
+        ↓
+Progress Tracking & Analytics
 ```
 
 ---
 
-# Project Structure
+# 2. High-Level Architecture（系统架构）
+
+## 2.1 Logical Architecture
+
+系统由四个核心层组成：
 
 ```
-├── backend/
-│   ├── main.py
-│   │
-│   ├── ai.py
-│   │   LLM content generation
-│   │
-│   ├── agents.py
-│   │   Listening / writing / speaking agents
-│   │
-│   ├── speech_openai.py
-│   │   STT + TTS integration via OpenRouter
-│   │
-│   ├── auth.py
-│   ├── database.py
-│   └── models.py
-│
-├── frontend/src/
-│
-│   ├── pages/
-│   │
-│   │   PracticeHub/
-│   │   Skill selection dashboard
-│   │
-│   │   ObjectivePracticePage/
-│   │   Shared reading/listening flow
-│   │
-│   │   ReadingPracticePage/
-│   │   ListeningPracticePage/
-│   │   WritingPracticePage/
-│   │   SpeakingPracticePage/
-│   │
-│   │   ProgressPage/
-│   │   AuthPage/
-│
-│   ├── components/
-│   │   PracticeQuestions/
-│   │
-│   └── services/
-│       api.js
-│
-└── requirements.txt
-```
-
-The MongoDB database name remains:
-
-```
-ielts_reading_agent
-```
-
-(slightly legacy naming but still functional).
-
-Sessions and results now include a `skill` field:
-
-```
-reading | listening | writing | speaking
+Frontend (React + Vite + MUI)
+        ↓
+API Layer (FastAPI)
+        ↓
+AI Service Layer (LLM + Speech Processing)
+        ↓
+Data Layer (MongoDB)
 ```
 
 ---
 
-# Setup
+## 2.2 Backend Service Decomposition（服务拆分逻辑）
 
-## 1. Create Virtual Environment
+### 1. Practice Generation Service
+
+负责生成所有 IELTS 练习内容：
+
+* Reading passages + questions
+* Listening scripts
+* Writing prompts
+* Speaking cue cards
+
+特点：
+
+* 基于 LLM（OpenRouter / Claude）
+* 按 skill + difficulty band 控制生成
+
+---
+
+### 2. Evaluation Service（核心AI评分系统）
+
+负责对用户答案进行评分：
+
+#### Objective tasks（Reading / Listening）
+
+* 标准答案比对
+* 自动 scoring
+
+#### Subjective tasks（Writing / Speaking）
+
+* LLM rubric evaluation
+* IELTS band estimation
+
+评分维度：
 
 ```
-cd ielts-reading-agent
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+Writing:
+- Task Response
+- Coherence & Cohesion
+- Lexical Resource
+- Grammar Accuracy
+
+Speaking:
+- Fluency
+- Lexical Resource
+- Grammar
+- Pronunciation (approx via transcript/audio signals)
 ```
 
 ---
 
-## 2. Configure Environment
+### 3. Speech Processing Service
 
-Create `.env` in project root.
+处理 speaking 输入：
 
-Minimum required:
+* Speech-to-Text (STT via OpenRouter)
+* Text-to-Speech (TTS for listening practice)
+* Audio ingestion (record/upload/dictate)
+
+---
+
+### 4. Adaptive Learning / Analytics Service（隐含核心能力）
+
+基于历史数据：
+
+* 用户 band progression
+* skill weaknesses
+* mistake patterns
+
+输出：
 
 ```
-OPENROUTER_API_KEY=
-MONGODB_URL=
-JWT_SECRET=
+next difficulty level
+targeted exercises
+weakness-based practice
 ```
 
 ---
 
-## 3. Build Frontend
+### 5. Authentication & Session Service
+
+* JWT authentication
+* session tracking
+* user isolation
+
+---
+
+### 6. Data Persistence Layer (MongoDB)
+
+核心 collections：
 
 ```
-cd frontend
-npm install
-npm run build
-cd ..
+users
+practice_sessions
+results / evaluations
+diagnostic_scores
+```
+
+数据特征：
+
+* session-based tracking
+* skill-tagged records (reading/listening/writing/speaking)
+* full history for longitudinal analytics
+
+---
+
+# 3. Diagnostic System（基线能力建模）
+
+系统首次使用时执行：
+
+## 4-skill diagnostic test
+
+| Skill     | Task Type               |
+| --------- | ----------------------- |
+| Reading   | passage + MCQ           |
+| Listening | short audio + questions |
+| Writing   | Task 2 essay            |
+| Speaking  | cue card response       |
+
+输出：
+
+```
+baseline_band_score
+per-skill proficiency profile
+```
+
+作用：
+
+* 初始化 difficulty level
+* 作为 adaptive engine input
+
+---
+
+# 4. Core Functional Modules（功能模块分解）
+
+---
+
+## 4.1 Reading Module
+
+### 功能：
+
+* AI生成 academic passages
+* MCQ + gap-fill questions
+* server-side answer validation
+
+### 特点：
+
+* deterministic scoring (non-LLM)
+* hidden answer key stored server-side
+* session-based tracking
+
+---
+
+## 4.2 Listening Module
+
+### 功能：
+
+* LLM-generated scripts
+* TTS audio generation
+* objective questions
+
+### Speech pipeline:
+
+```
+Text script → TTS → Audio playback
+```
+
+可扩展：
+
+* accents
+* noise augmentation
+* multi-speaker simulation
+
+---
+
+## 4.3 Writing Module
+
+### 功能：
+
+* Task 1 (report)
+* Task 2 (essay)
+
+### Evaluation:
+
+LLM-based rubric scoring:
+
+```
+input: essay text
+output:
+  band score
+  structured feedback
+  improvement suggestions
 ```
 
 ---
 
-## 4. Run Backend
+## 4.4 Speaking Module
+
+### Input modes:
+
+* audio recording
+* upload
+* transcript input
+* typed answer
+
+### Pipeline:
 
 ```
-cd backend
-source ../venv/bin/activate
-python main.py
+Audio → STT → Transcript → LLM evaluation → band score
 ```
 
-Open:
+### Scoring:
+
+* fluency
+* vocabulary
+* grammar
+* pronunciation (approx via proxy signals)
+
+---
+
+## 4.5 Progress Tracking Module
+
+Stores longitudinal learning data:
+
+Each attempt contains:
 
 ```
-http://localhost:8000
+user response
+score / band
+feedback
+timestamp
+skill type
+```
+
+Supports:
+
+* history review
+* skill-based filtering
+* performance trends
+
+---
+
+# 5. AI Architecture (核心智能设计)
+
+## 5.1 Agent-based conceptual model（建议架构）
+
+系统可以抽象为 4 类 AI agents：
+
+```
+Task Generation Agent
+Evaluation Agent
+Feedback Agent
+Difficulty Adaptation Agent
+```
+
+形成 pipeline：
+
+```
+generate → practice → evaluate → diagnose → adapt
 ```
 
 ---
 
-## Development Mode
+## 5.2 Evaluation Reliability Strategy
 
-Run frontend with hot reload:
+当前问题：LLM评分不稳定
 
-```
-cd frontend
-npm run dev
-```
+增强方案：
 
-Open:
+### Multi-judge system
 
 ```
-http://localhost:5173
+LLM Judge A
+LLM Judge B
+LLM Judge C
+        ↓
+Aggregation (median/weighted)
 ```
 
-Vite proxies `/api` requests to the backend.
+Writing and speaking evaluation in the API uses **three parallel judges** by default: each judge gets a slightly different calibration instruction, **per-category scores** and the **rubric band label** are aggregated with the **median**, and **feedback text** (overall, strengths, improvements, excerpt) comes from the judge whose **total score** is closest to that median (so narratives stay coherent). Set environment variable `EVAL_JUDGE_COUNT=1` to fall back to a single judge (lower latency and cost).
 
 ---
 
-# API Endpoints
+## 5.3 Adaptive Learning Engine
 
-## Practice
+核心逻辑：
 
-| Method | Endpoint                             | Description                 |
-| ------ | ------------------------------------ | --------------------------- |
-| POST   | `/api/practice/generate`             | Generate a practice session |
-| POST   | `/api/practice/submit`               | Submit objective answers    |
-| POST   | `/api/practice/submit-writing`       | Submit writing response     |
-| POST   | `/api/practice/submit-speaking`      | Submit speaking audio       |
-| POST   | `/api/practice/submit-speaking-json` | Submit transcript only      |
+```
+user_band
+    ↓
+skill weakness profile
+    ↓
+next exercise difficulty
+```
+
+输出：
+
+* targeted practice
+* adaptive difficulty adjustment
+* skill-specific reinforcement
 
 ---
 
-## Listening Audio
+## 5.4 Feedback Transformation Layer
 
-| Method | Endpoint             | Description                          |
-| ------ | -------------------- | ------------------------------------ |
-| POST   | `/api/listening/tts` | Generate audio from listening script |
+将抽象评分转化为 actionable guidance：
 
-Returns:
+### Bad:
 
 ```
-audio/mpeg
+Improve grammar
 ```
 
----
-
-## Progress
-
-| Method | Endpoint                      | Description             |
-| ------ | ----------------------------- | ----------------------- |
-| GET    | `/api/progress`               | User practice history   |
-| GET    | `/api/progress?skill=reading` | Filter by skill         |
-| GET    | `/api/results/{id}`           | Detailed attempt result |
-
----
-
-# System Workflow
-
-### 1. Practice Generation
+### Good:
 
 ```
-Client
-   │
-POST /api/practice/generate
-   │
-LLM generates passage + questions
-   │
-Session stored in MongoDB
-   │
-Client receives practice data
-```
-
-Hidden answers remain server-side.
-
----
-
-### 2. Objective Question Evaluation
-
-```
-Client answers
-   │
-POST /api/practice/submit
-   │
-Server compares with hidden answers
-   │
-Score calculated
-   │
-Results stored in database
+You overuse "very".
+Replace with:
+- significantly
+- considerably
 ```
 
 ---
 
-### 3. Writing Evaluation
+# 6. System Workflow Summary（端到端流程）
+
+## 6.1 Practice Flow
 
 ```
-Essay text
-   │
+User request
+   ↓
+Generate practice (LLM)
+   ↓
+Store session (MongoDB)
+   ↓
+User attempts
+   ↓
+Submit answers
+   ↓
+Evaluation engine
+   ↓
+Store results
+   ↓
+Return feedback
+```
+
+---
+
+## 6.2 Writing/Speaking Flow
+
+```
+User input (text/audio)
+        ↓
+STT (if audio)
+        ↓
 LLM rubric evaluation
-   │
-Structured feedback
-   │
-Band estimate
+        ↓
+band score + feedback
+        ↓
+progress update
 ```
 
 ---
 
-### 4. Speaking Evaluation
+## 6.3 Adaptive Loop
 
 ```
-Audio
-   │
-Speech-to-text (optional)
-   │
-Transcript
-   │
-LLM evaluation
-   │
-Band estimate + feedback
+performance history
+        ↓
+weakness detection
+        ↓
+next task difficulty adjustment
+        ↓
+new practice generation
 ```
 
 ---
 
-### 5. Progress Tracking
+# 7. Key Design Principles
 
-Each attempt stores:
+### 1. Server-side truth control
 
-* user response
-* score / band estimate
-* evaluation feedback
-* timestamp
-
-This enables longitudinal learning analytics.
+* answers hidden from client
+* prevents cheating
+* enables consistent scoring
 
 ---
 
-# License
+### 2. Session-based learning model
 
-Open-source project for IELTS practice experimentation and AI-assisted language learning.
+* each practice = structured session
+* enables replay + analytics
 
+---
+
+### 3. LLM for open-ended evaluation only
+
+* deterministic logic for MCQ
+* LLM only for subjective tasks
+
+---
+
+### 4. Longitudinal learning tracking
+
+* not single-task scoring
+* but progress over time
+
+---
+
+# 8. System Positioning（产品本质）
+
+从系统设计角度，这不是：
+
+> IELTS practice tool
+
+而是：
+
+> AI-driven adaptive language learning system
+
+更接近：
+
+* Duolingo adaptive engine
+* ELSA Speak (speech feedback)
+* IELTS Coach simulator
+
+---

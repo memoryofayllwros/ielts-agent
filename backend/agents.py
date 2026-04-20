@@ -16,10 +16,137 @@ which sub-agent to call; the sub-agent then calls the model again to generate
 the actual practice content as JSON.
 """
 
+import asyncio
 import json
+import os
+from statistics import median
 from typing import Optional
 
 from ai import _get_client, MODEL, _extract_json
+
+
+def _eval_judge_count() -> int:
+    """Multi-judge evaluation size; set EVAL_JUDGE_COUNT=1 to use a single judge (lower cost)."""
+    try:
+        n = int(os.environ.get("EVAL_JUDGE_COUNT", "3"))
+    except ValueError:
+        n = 3
+    return max(1, min(n, 5))
+
+
+_BAND_ORDER = ["Poor", "Needs Improvement", "Satisfactory", "Good", "Excellent"]
+
+
+def _band_to_rank(label: str) -> int:
+    label = (label or "").strip().lower()
+    for i, b in enumerate(_BAND_ORDER):
+        if b.lower() == label:
+            return i
+    return 2
+
+
+def _rank_to_band(rank: float) -> str:
+    idx = int(round(rank))
+    idx = max(0, min(len(_BAND_ORDER) - 1, idx))
+    return _BAND_ORDER[idx]
+
+
+def _median_int(values: list[int]) -> int:
+    if not values:
+        return 0
+    return int(round(median(values)))
+
+
+_WRITING_JUDGE_EXTRAS = [
+    "\nYou are Judge A: apply the rubric strictly against the stated descriptors.",
+    "\nYou are Judge B: when uncertain, prefer the middle of the allowed score range for that category.",
+    "\nYou are Judge C: give extra weight to argument development and coherence when scores are borderline.",
+    "\nYou are Judge D: balance all four criteria equally before assigning each category score.",
+    "\nYou are Judge E: calibrate against what a typical IELTS classroom examiner would award.",
+]
+
+_SPEAKING_JUDGE_EXTRAS = [
+    "\nYou are Judge A: apply the rubric strictly; note transcript limitations explicitly if relevant.",
+    "\nYou are Judge B: when uncertain, prefer middle scores for each category.",
+    "\nYou are Judge C: weight Fluency & Coherence heavily when resolving borderline totals.",
+    "\nYou are Judge D: balance all four criteria equally.",
+    "\nYou are Judge E: be conservative on pronunciation (inferred) scores when the transcript is noisy.",
+]
+
+
+def _criteria_list(task: dict, skill: str) -> list[dict]:
+    if skill == "speaking":
+        return list(task.get("assessment_criteria") or [])
+    return list(task.get("scoring_criteria") or [])
+
+
+def _recompute_eval_totals(result: dict) -> dict:
+    cats = result.get("category_scores") or []
+    total = sum(c.get("score", 0) for c in cats)
+    max_total = sum(c.get("max_score", 0) for c in cats)
+    if max_total > 0:
+        result = {**result, "total_score": total, "max_score": max_total, "percentage": round(total / max_total * 100, 1)}
+    return result
+
+
+def _feedback_for_category(evaluation: dict, category_name: str) -> str:
+    want = category_name.strip().lower()
+    for c in evaluation.get("category_scores") or []:
+        if (c.get("category") or "").strip().lower() == want:
+            return (c.get("feedback") or "").strip()
+    return ""
+
+
+def _aggregate_evaluations(
+    evaluations: list[dict],
+    task: dict,
+    *,
+    skill: str,
+    excerpt_key: str,
+) -> dict:
+    """
+    Merge multiple judge JSON evaluations: median per category score and per rubric band;
+    narrative fields taken from the judge whose total is closest to the median total (anchor).
+    """
+    criteria = _criteria_list(task, skill)
+    normalized = [_recompute_eval_totals(dict(e)) for e in evaluations]
+    median_total = median(e["total_score"] for e in normalized)
+    anchor_idx = min(
+        range(len(normalized)),
+        key=lambda i: abs(normalized[i]["total_score"] - median_total),
+    )
+    anchor = normalized[anchor_idx]
+
+    merged_categories: list[dict] = []
+    for crit in criteria:
+        name = crit["category"]
+        max_s = int(crit["max_score"])
+        scores: list[int] = []
+        for ev in normalized:
+            for c in ev.get("category_scores") or []:
+                if (c.get("category") or "").strip().lower() == name.strip().lower():
+                    scores.append(int(c.get("score", 0)))
+                    break
+        med_score = _median_int(scores) if scores else 0
+        med_score = max(0, min(max_s, med_score))
+        fb = _feedback_for_category(anchor, name) or "See overall feedback."
+        merged_categories.append(
+            {"category": name, "score": med_score, "max_score": max_s, "feedback": fb}
+        )
+
+    out = {
+        **anchor,
+        "category_scores": merged_categories,
+        "band": _rank_to_band(median(_band_to_rank(e.get("band", "")) for e in normalized)),
+        "overall_feedback": anchor.get("overall_feedback", ""),
+        "strengths": list(anchor.get("strengths") or []),
+        "improvements": list(anchor.get("improvements") or []),
+    }
+    excerpt = anchor.get(excerpt_key)
+    if excerpt is not None:
+        out[excerpt_key] = excerpt
+
+    return _recompute_eval_totals(out)
 
 
 # ── Supervisor ────────────────────────────────────────────────────────────────
@@ -195,6 +322,7 @@ _WRITING_SYSTEM = """\
 You are an expert IELTS test creator specialising in writing tasks.
 Generate authentic, exam-quality IELTS Academic writing practice sessions.
 Always return valid JSON exactly matching the schema in the user message.
+Inside every JSON string value, escape double quotes as \\" and newlines as \\n so the output is valid JSON.
 Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
@@ -379,39 +507,47 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def evaluate_writing(task: dict, user_text: str) -> dict:
-    """
-    Evaluates a student's writing response against the task's scoring criteria.
-    Returns a structured evaluation with scores and feedback.
-    """
-    client = _get_client()
-    prompt = _build_eval_prompt(task, user_text)
-
+async def _writing_judge_once(client, system: str, user_prompt: str) -> dict:
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[
-            {"role": "system", "content": _EVAL_SYSTEM},
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt},
         ],
         response_format={"type": "json_object"},
         max_tokens=2000,
     )
-
     text = response.choices[0].message.content
     if not text:
         raise ValueError("Empty response from writing evaluator")
+    return _recompute_eval_totals(_extract_json(text))
 
-    result = _extract_json(text)
 
-    # Recompute percentage from category scores for consistency
-    total = sum(c.get("score", 0) for c in result.get("category_scores", []))
-    max_total = sum(c.get("max_score", 0) for c in result.get("category_scores", []))
-    if max_total > 0:
-        result["total_score"] = total
-        result["max_score"] = max_total
-        result["percentage"] = round(total / max_total * 100, 1)
+async def evaluate_writing(task: dict, user_text: str) -> dict:
+    """
+    Evaluates a student's writing response against the task's scoring criteria.
+    Uses a multi-judge pool (median per category, median rubric band) when EVAL_JUDGE_COUNT > 1.
+    """
+    client = _get_client()
+    prompt = _build_eval_prompt(task, user_text)
+    n = _eval_judge_count()
 
-    return result
+    if n == 1:
+        return await _writing_judge_once(client, _EVAL_SYSTEM, prompt)
+
+    extras = _WRITING_JUDGE_EXTRAS[:n]
+    results = await asyncio.gather(
+        *(_writing_judge_once(client, _EVAL_SYSTEM + ex, prompt) for ex in extras),
+        return_exceptions=True,
+    )
+    ok = [r for r in results if isinstance(r, dict)]
+    if not ok:
+        for r in results:
+            if isinstance(r, BaseException):
+                raise r
+        raise ValueError("All writing evaluators failed")
+
+    return _aggregate_evaluations(ok, task, skill="writing", excerpt_key="revised_excerpt")
 
 
 # ── Listening agent ───────────────────────────────────────────────────────────
@@ -421,6 +557,8 @@ You are an expert IELTS Listening test creator.
 Generate authentic practice: a script the student would hear (monologue or dialogue with speaker labels),
 plus comprehension questions in the same JSON shapes as IELTS reading-style items.
 Always return valid JSON exactly matching the schema in the user message.
+Inside every JSON string value (especially "transcript" and "passage_with_blanks"), escape double quotes as \\"
+and newlines as \\n so the output is valid JSON. Do not use raw line breaks inside a JSON string.
 Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
@@ -523,7 +661,7 @@ async def listening_agent(
             {"role": "user", "content": prompt},
         ],
         response_format={"type": "json_object"},
-        max_tokens=4000,
+        max_tokens=8192,
     )
     text = response.choices[0].message.content
     if not text:
@@ -642,14 +780,12 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def evaluate_speaking(task: dict, transcript: str) -> dict:
-    client = _get_client()
-    prompt = _build_speak_eval_prompt(task, transcript)
+async def _speaking_judge_once(client, system: str, user_prompt: str) -> dict:
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[
-            {"role": "system", "content": _SPEAK_EVAL_SYSTEM},
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt},
         ],
         response_format={"type": "json_object"},
         max_tokens=2000,
@@ -657,11 +793,30 @@ async def evaluate_speaking(task: dict, transcript: str) -> dict:
     text = response.choices[0].message.content
     if not text:
         raise ValueError("Empty response from speaking evaluator")
-    result = _extract_json(text)
-    total = sum(c.get("score", 0) for c in result.get("category_scores", []))
-    max_total = sum(c.get("max_score", 0) for c in result.get("category_scores", []))
-    if max_total > 0:
-        result["total_score"] = total
-        result["max_score"] = max_total
-        result["percentage"] = round(total / max_total * 100, 1)
-    return result
+    return _recompute_eval_totals(_extract_json(text))
+
+
+async def evaluate_speaking(task: dict, transcript: str) -> dict:
+    """
+    Evaluates a speaking transcript; multi-judge median aggregation when EVAL_JUDGE_COUNT > 1.
+    """
+    client = _get_client()
+    prompt = _build_speak_eval_prompt(task, transcript)
+    n = _eval_judge_count()
+
+    if n == 1:
+        return await _speaking_judge_once(client, _SPEAK_EVAL_SYSTEM, prompt)
+
+    extras = _SPEAKING_JUDGE_EXTRAS[:n]
+    results = await asyncio.gather(
+        *(_speaking_judge_once(client, _SPEAK_EVAL_SYSTEM + ex, prompt) for ex in extras),
+        return_exceptions=True,
+    )
+    ok = [r for r in results if isinstance(r, dict)]
+    if not ok:
+        for r in results:
+            if isinstance(r, BaseException):
+                raise r
+        raise ValueError("All speaking evaluators failed")
+
+    return _aggregate_evaluations(ok, task, skill="speaking", excerpt_key="better_answer_snippet")

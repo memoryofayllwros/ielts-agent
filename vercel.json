@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "pip install -r requirements.txt",
+  "installCommand": "curl -sSL https://install.python-poetry.org | python3 - -y && export PATH=\"$HOME/.local/bin:$PATH\" && poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi",
   "rewrites": [
     {
       "source": "/api/:path*",

@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from typing import Optional
+from typing import Any, List, Optional
 
 from openai import AsyncOpenAI
 
@@ -82,23 +82,216 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
+def _parse_json_object(raw: str) -> dict:
+    """Parse a JSON object; repair common LLM mistakes (unescaped quotes in long strings, etc.)."""
+    s = raw.strip()
+    try:
+        data = json.loads(s)
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+    try:
+        from json_repair import repair_json
+
+        data = repair_json(s, return_objects=True)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    raise ValueError("No valid JSON object in response")
+
+
+def _extract_first_balanced_json_object(text: str) -> Optional[str]:
+    """
+    Return the substring from the first '{' to its matching '}', respecting JSON string rules.
+    Avoids naive first-{ to last-} slicing, which breaks when values contain '}' or '{' (e.g. transcripts).
+    """
+    start = text.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    i = start
+    in_string = False
+    escape = False
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            i += 1
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+        i += 1
+    return None
+
+
 def _extract_json(text: str) -> dict:
     text = text.strip()
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        return _parse_json_object(text)
+    except ValueError:
         pass
 
-    match = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', text)
+    match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
     if match:
-        return json.loads(match.group(1))
+        try:
+            return _parse_json_object(match.group(1))
+        except ValueError:
+            pass
 
-    start = text.find('{')
-    end = text.rfind('}')
-    if start != -1 and end != -1:
-        return json.loads(text[start:end + 1])
+    balanced = _extract_first_balanced_json_object(text)
+    if balanced:
+        try:
+            return _parse_json_object(balanced)
+        except ValueError:
+            pass
+
+    # Last resort: legacy slice (may fail on transcripts with unbalanced braces in dialogue)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return _parse_json_object(text[start : end + 1])
+        except ValueError:
+            pass
 
     raise ValueError("No valid JSON found in response")
+
+
+def _ensure_str_list(val: Any) -> List[str]:
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x) for x in val]
+    if isinstance(val, str) and val.strip():
+        return [val]
+    return []
+
+
+def _normalize_blank_placeholders(text: Optional[str]) -> Optional[str]:
+    """Coerce common model mistakes to [BLANK_n] markers the UI expects."""
+    if not text or not isinstance(text, str):
+        return text
+    out = text
+    out = re.sub(
+        r"\[BLANK\s+(\d+)\]",
+        lambda m: f"[BLANK_{int(m.group(1))}]",
+        out,
+    )
+    out = re.sub(
+        r"\[BLANK_?(\d+)\]",
+        lambda m: f"[BLANK_{int(m.group(1))}]",
+        out,
+    )
+    return out
+
+
+_TYPE_ALIASES = {
+    "fill_in_the_blanks": "fill_in_blanks",
+    "fill_in_blank": "fill_in_blanks",
+    "fill_in_blanks": "fill_in_blanks",
+    "gap_fill": "fill_in_blanks",
+    "multiple_choice_single": "mc_single",
+    "multiple_choice": "mc_single",
+    "single_choice": "mc_single",
+    "mc_single": "mc_single",
+    "multiple_choice_multiple": "mc_multiple",
+    "multiple_select": "mc_multiple",
+    "mc_multiple": "mc_multiple",
+    "mc_multi": "mc_multiple",
+}
+
+
+def _normalize_question_type(raw: Optional[str], q: dict) -> str:
+    s = (str(raw).strip().lower().replace("-", "_") if raw is not None else "")
+    s = re.sub(r"\s+", "_", s)
+    if s in _TYPE_ALIASES:
+        return _TYPE_ALIASES[s]
+    if s in ("fill_in_blanks", "mc_single", "mc_multiple"):
+        return s
+    pwb = q.get("passage_with_blanks")
+    wb = q.get("word_bank")
+    if isinstance(pwb, str) and pwb.strip() and _ensure_str_list(wb):
+        return "fill_in_blanks"
+    opts = q.get("options")
+    if isinstance(opts, list) and len(opts) > 0:
+        ca = q.get("correct_answers") or []
+        if isinstance(ca, list) and len(ca) > 1:
+            return "mc_multiple"
+        return "mc_single"
+    return "mc_single"
+
+
+def normalize_reading_session(data: dict) -> dict:
+    """Make LLM output safe for storage, scoring, and the React practice UI."""
+    out = dict(data)
+    raw_qs = out.get("questions")
+    if isinstance(raw_qs, dict):
+        questions = list(raw_qs.values())
+    elif isinstance(raw_qs, list):
+        questions = raw_qs
+    else:
+        questions = []
+
+    cleaned = []
+    for i, q in enumerate(questions):
+        if not isinstance(q, dict):
+            continue
+        qid = q.get("id")
+        if not qid:
+            qid = f"q{i + 1}"
+        qtype = _normalize_question_type(q.get("type"), q)
+        passage_with_blanks = q.get("passage_with_blanks")
+        if isinstance(passage_with_blanks, str):
+            passage_with_blanks = _normalize_blank_placeholders(passage_with_blanks)
+        word_bank = _ensure_str_list(q.get("word_bank"))
+        options = _ensure_str_list(q.get("options"))
+        ca = q.get("correct_answers")
+        if not isinstance(ca, list):
+            ca = _ensure_str_list(ca)
+        expl = q.get("explanation")
+        if expl is None or (isinstance(expl, str) and not expl.strip()):
+            expl = ""
+        else:
+            expl = str(expl)
+
+        cleaned.append(
+            {
+                "id": str(qid),
+                "type": qtype,
+                "passage_with_blanks": passage_with_blanks,
+                "word_bank": word_bank or None,
+                "question": q.get("question"),
+                "options": options or None,
+                "correct_answers": ca,
+                "explanation": expl,
+            }
+        )
+
+    if not cleaned:
+        raise ValueError("Reading session has no valid questions")
+
+    out["questions"] = cleaned
+    if not out.get("topic"):
+        out["topic"] = "Practice"
+    if not isinstance(out.get("passage"), str):
+        out["passage"] = str(out.get("passage") or "")
+    return out
 
 
 async def generate_practice_session(
@@ -122,7 +315,7 @@ async def generate_practice_session(
     if not text:
         raise ValueError("Empty response from model")
 
-    return _extract_json(text)
+    return normalize_reading_session(_extract_json(text))
 
 
 def build_diagnostic_reading_prompt(topic: Optional[str]) -> str:
@@ -175,4 +368,4 @@ async def generate_diagnostic_reading_session(topic: Optional[str] = None) -> di
     text = response.choices[0].message.content
     if not text:
         raise ValueError("Empty response from model")
-    return _extract_json(text)
+    return normalize_reading_session(_extract_json(text))

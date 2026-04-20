@@ -100,7 +100,7 @@ export default function AuthPage() {
               📖
             </Box>
             <Typography variant="h5" fontWeight={700} color="text.primary">
-              IELTS Practice
+              IELTS Band Booster
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Reading, Listening, Writing & Speaking

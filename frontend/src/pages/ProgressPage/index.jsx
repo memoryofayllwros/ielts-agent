@@ -387,7 +387,7 @@ export default function ProgressPage() {
                 <>
                   <ReviewPassage
                     passage={reviewData.passage || reviewData.transcript}
-                    title={sk === "listening" ? "Listening script" : "Reading passage"}
+                    title={sk === "listening" ? "Listening (audio)" : "Reading passage"}
                   />
                   {(reviewData.question_results || []).map((qr, i) => (
                     <ReviewQuestion key={qr.question_id || i} qr={qr} index={i} />

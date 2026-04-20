@@ -5,9 +5,9 @@ export default function ListeningPracticePage() {
     <ObjectivePracticePage
       skill="listening"
       navbarTitle="Listening"
-      contentLabel="Listening script"
-      intro="Listen using browser text-to-speech or optional server voice (OpenRouter), then answer questions on what you heard."
-      loadingBlurb="Generating listening script and questions…"
+      contentLabel="Audio"
+      intro="Use the audio controls to listen — the full script stays hidden during the test. Then answer the questions."
+      loadingBlurb="Generating listening task and questions…"
     />
   );
 }

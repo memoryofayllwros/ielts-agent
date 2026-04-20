@@ -6,7 +6,12 @@ const SESSION_KEY = "ielts_auth_session";
 
 function getStoredSession() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    const raw = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    if (raw && typeof raw.access_token === "string" && raw.access_token.length > 0) {
+      return raw;
+    }
+    if (raw) localStorage.removeItem(SESSION_KEY);
+    return null;
   } catch {
     return null;
   }
@@ -35,7 +40,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        isAuthenticated: !!(user && typeof user.access_token === "string" && user.access_token),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

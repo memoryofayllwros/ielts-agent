@@ -22,6 +22,7 @@ export function FillInBlanksQuestion({ question, answers, onAnswer, submitted, r
   const blanks = (question.passage_with_blanks?.match(/\[BLANK_\d+\]/g) || []);
   const wordBank = question.word_bank || [];
   const parts = question.passage_with_blanks?.split(/(\[BLANK_\d+\])/) || [];
+  const ansList = Array.isArray(answers) ? answers : [];
 
   return (
     <Box>
@@ -33,7 +34,7 @@ export function FillInBlanksQuestion({ question, answers, onAnswer, submitted, r
           const match = part.match(/\[BLANK_(\d+)\]/);
           if (match) {
             const idx = parseInt(match[1], 10) - 1;
-            const userVal = answers[idx] || "";
+            const userVal = ansList[idx] || "";
             const isCorrect = result?.correct_answers[idx]?.toLowerCase() === userVal.toLowerCase();
             const correctVal = result?.correct_answers[idx];
             return (
@@ -63,7 +64,9 @@ export function FillInBlanksQuestion({ question, answers, onAnswer, submitted, r
                     <Select
                       value={userVal}
                       onChange={(e) => {
-                        const newAnswers = [...(answers || Array(blanks.length).fill(""))];
+                        const base = ansList.length ? [...ansList] : Array(blanks.length).fill("");
+                        const newAnswers = [...base];
+                        while (newAnswers.length < blanks.length) newAnswers.push("");
                         newAnswers[idx] = e.target.value;
                         onAnswer(newAnswers);
                       }}
@@ -189,7 +192,10 @@ export function McMultipleQuestion({ question, answers, onAnswer, submitted, res
   );
 }
 
+const KNOWN_TYPES = new Set(["fill_in_blanks", "mc_single", "mc_multiple"]);
+
 export function QuestionCard({ question, index, answers, onAnswer, submitted, result }) {
+  const known = KNOWN_TYPES.has(question?.type);
   return (
     <Card sx={{ mb: 2, borderRadius: "16px" }}>
       <CardContent sx={{ p: 3 }}>
@@ -204,6 +210,16 @@ export function QuestionCard({ question, index, answers, onAnswer, submitted, re
         )}
         {question.type === "mc_multiple" && (
           <McMultipleQuestion question={question} answers={answers} onAnswer={onAnswer} submitted={submitted} result={result} />
+        )}
+        {!known && (
+          <Box sx={{ py: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              This question uses an unsupported format ({String(question?.type || "unknown")}). Start a new session or update the app.
+            </Typography>
+            {question?.question && (
+              <Typography variant="body2" sx={{ color: "#344767" }}>{question.question}</Typography>
+            )}
+          </Box>
         )}
         {submitted && result?.explanation && (
           <Box sx={{ mt: 2, p: 2, background: "#f8f9fa", borderRadius: "10px", borderLeft: "3px solid #1A73E8" }}>

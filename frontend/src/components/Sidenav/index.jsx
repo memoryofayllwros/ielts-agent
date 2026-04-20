@@ -64,7 +64,7 @@ function Sidenav({ routes }) {
             variant="h6"
             sx={{ fontWeight: 700, color: "#344767", lineHeight: 1.2 }}
           >
-            IELTS Practice
+            IELTS Band Booster
             <Typography
               component="span"
               variant="caption"

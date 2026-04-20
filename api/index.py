@@ -1,8 +1,9 @@
 """
-Vercel serverless entry point for the IELTS Practice FastAPI backend.
+Vercel serverless entry point for the IELTS Band Booster FastAPI backend.
 
 Vercel bundles this file together with everything listed in
-vercel.json `includeFiles` (the entire backend/ package).
+vercel.json `includeFiles` (the entire backend/ package). Python
+dependencies are declared in pyproject.toml and installed with Poetry.
 """
 import sys
 import os

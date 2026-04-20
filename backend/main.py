@@ -1,14 +1,18 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_BACKEND_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BACKEND_DIR.parent
+load_dotenv(_REPO_ROOT / ".env")
+load_dotenv(_BACKEND_DIR / ".env")
 
 from fastapi import FastAPI, HTTPException, Depends, File, Form, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
-from pathlib import Path
 
 from models import (
     RegisterRequest, LoginRequest, AuthResponse,
@@ -50,7 +54,20 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
-app = FastAPI(title="IELTS Practice Agent", lifespan=lifespan)
+app = FastAPI(title="IELTS Band Booster Agent", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
@@ -96,17 +113,21 @@ async def login(req: LoginRequest):
 
 
 def _questions_safe(raw: dict) -> list:
-    return [
-        {
-            "id": q["id"],
-            "type": q["type"],
-            "passage_with_blanks": q.get("passage_with_blanks"),
-            "word_bank": q.get("word_bank"),
-            "question": q.get("question"),
-            "options": q.get("options"),
-        }
-        for q in raw.get("questions", [])
-    ]
+    out = []
+    for q in raw.get("questions") or []:
+        if not isinstance(q, dict) or not q.get("id"):
+            continue
+        out.append(
+            {
+                "id": q["id"],
+                "type": q.get("type") or "mc_single",
+                "passage_with_blanks": q.get("passage_with_blanks"),
+                "word_bank": q.get("word_bank"),
+                "question": q.get("question"),
+                "options": q.get("options"),
+            }
+        )
+    return out
 
 
 # ── Practice ──────────────────────────────────────────────────────────────────

@@ -115,12 +115,15 @@ export default function ObjectivePracticePage({
     ? (skill === "listening" ? (session.transcript || session.passage) : session.passage)
     : "";
 
+  const questions = session?.questions ?? [];
   const allAnswered = session
-    ? session.questions.every((q) => {
+    ? questions.length > 0 &&
+      questions.every((q) => {
         const ans = answers[q.id];
         if (!ans || ans.length === 0) return false;
         if (q.type === "fill_in_blanks") {
           const blankCount = (q.passage_with_blanks?.match(/\[BLANK_\d+\]/g) || []).length;
+          if (blankCount === 0) return false;
           return ans.filter(Boolean).length === blankCount;
         }
         return true;
@@ -255,12 +258,18 @@ export default function ObjectivePracticePage({
         <Card sx={{ mb: 3, borderRadius: "16px" }}>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase" letterSpacing={0.5} display="block" sx={{ mb: 1.5 }}>
-              {contentLabel}
+              {skill === "listening" ? "Audio" : contentLabel}
             </Typography>
-            <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
+            {skill === "listening" ? (
+              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                The listening script is not shown after the test. Review your answers below.
+              </Typography>
+            ) : (
+              <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
+            )}
           </CardContent>
         </Card>
-        {session.questions.map((q, i) => (
+        {questions.map((q, i) => (
           <QuestionCard key={q.id} question={q} index={i} answers={answers[q.id]} onAnswer={() => {}} submitted result={resultMap[q.id]} />
         ))}
       </Box>
@@ -274,7 +283,7 @@ export default function ObjectivePracticePage({
         <CardContent sx={{ p: 2.5, display: "flex", alignItems: "center", gap: 2 }}>
           <Chip label={session.topic} sx={{ background: "#f0f2f5", fontWeight: 600 }} />
           <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-            {session.questions?.length ?? 0} question{(session.questions?.length ?? 0) === 1 ? "" : "s"}
+            {questions.length} question{questions.length === 1 ? "" : "s"}
           </Typography>
           <Button variant="outlined" size="small" onClick={handleReset} sx={{ borderRadius: "8px" }}>{prefetchedSession?.session_id ? "Exit" : "New session"}</Button>
         </CardContent>
@@ -282,15 +291,22 @@ export default function ObjectivePracticePage({
       <Card sx={{ mb: 3, borderRadius: "16px" }}>
         <CardContent sx={{ p: 3 }}>
           <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase" letterSpacing={0.5} display="block" sx={{ mb: 1.5 }}>
-            {contentLabel}
+            {skill === "listening" ? "Audio" : contentLabel}
           </Typography>
           {skill === "listening" && (
-            <ListenToolbar transcript={scriptText} sessionId={session.session_id} />
+            <>
+              <ListenToolbar transcript={scriptText} sessionId={session.session_id} />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.8 }}>
+                The full listening script is hidden during this test. Use the controls above to play audio as many times as you need.
+              </Typography>
+            </>
           )}
-          <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
+          {skill !== "listening" && (
+            <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
+          )}
         </CardContent>
       </Card>
-      {session.questions.map((q, i) => (
+      {questions.map((q, i) => (
         <QuestionCard
           key={q.id}
           question={q}

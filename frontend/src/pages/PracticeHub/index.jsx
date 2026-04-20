@@ -9,7 +9,7 @@ import DashboardNavbar from "components/Navbars/DashboardNavbar";
 
 const SKILLS = [
   { key: "reading", title: "Reading", desc: "Academic passage, gap-fill and multiple choice.", route: "/practice/reading", emoji: "📄" },
-  { key: "listening", title: "Listening", desc: "Script + playback; questions on details.", route: "/practice/listening", emoji: "🎧" },
+  { key: "listening", title: "Listening", desc: "Audio only (script hidden); questions on what you heard.", route: "/practice/listening", emoji: "🎧" },
   { key: "writing", title: "Writing", desc: "Task 1 or Task 2 with rubric feedback.", route: "/practice/writing", emoji: "✍️" },
   { key: "speaking", title: "Speaking", desc: "Part 2 cue card; record or dictate your answer.", route: "/practice/speaking", emoji: "🎤" },
 ];
