@@ -9,7 +9,10 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
-import { QuestionCard, ScoreCircle } from "components/PracticeQuestions";
+import { QuestionCard } from "components/PracticeQuestions";
+import ResultSummary from "components/LearningLoop/ResultSummary";
+import SessionSkillBreakdown from "components/LearningLoop/SessionSkillBreakdown";
+import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 import { generateSession, submitAnswers, fetchListeningTts } from "services/api";
 
 function ListenToolbar({ transcript, sessionId }) {
@@ -94,6 +97,8 @@ export default function ObjectivePracticePage({
   prefetchedSession = null,
   diagnosticContinueLabel = null,
   onDiagnosticContinue = null,
+  useAdaptive = false,
+  focusSkill = null,
 }) {
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
@@ -135,7 +140,12 @@ export default function ObjectivePracticePage({
     setError("");
     setLoading(true);
     try {
-      const data = await generateSession({ skill, topic: topic.trim() || null });
+      const data = await generateSession({
+        skill,
+        topic: topic.trim() || null,
+        use_adaptive: useAdaptive,
+        focus_skill: focusSkill || null,
+      });
       setSession(data);
       setAnswers({});
       setResults(null);
@@ -196,6 +206,11 @@ export default function ObjectivePracticePage({
             <CardContent sx={{ p: 4, textAlign: "center" }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>{navbarTitle}</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{intro}</Typography>
+              {useAdaptive && (
+                <Alert severity="info" sx={{ mb: 2, borderRadius: "8px" }}>
+                  Adaptive focus: the next set targets your weakest micro-skill in this section (from your past results).
+                </Alert>
+              )}
               {!prefetchedSession && (
               <TextField
                 label="Topic (optional)"
@@ -239,22 +254,23 @@ export default function ObjectivePracticePage({
     return (
       <Box>
         <DashboardNavbar title="Results" />
-        <Card sx={{ mb: 3, borderRadius: "16px" }}>
-          <CardContent sx={{ p: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
-            <ScoreCircle percentage={results.percentage} />
-            <Box sx={{ flex: 1 }}>
-              <Chip label={results.topic} size="small" sx={{ mb: 1, background: "#f0f2f5", fontWeight: 600 }} />
-              <Typography variant="body1" color="text.secondary">
-                {results.total_score} / {results.max_score} points · {results.question_results.filter((r) => r.is_correct).length} of {results.question_results.length} correct
-              </Typography>
-            </Box>
-            {onDiagnosticContinue && diagnosticContinueLabel ? (
-              <Button variant="contained" color="primary" onClick={() => onDiagnosticContinue()} sx={{ borderRadius: "10px", fontWeight: 700 }}>{diagnosticContinueLabel}</Button>
-            ) : (
-              <Button variant="contained" color="primary" onClick={handleReset} sx={{ borderRadius: "10px", fontWeight: 700 }}>Practice again</Button>
-            )}
-          </CardContent>
-        </Card>
+        <ResultSummary results={results} />
+        <Box sx={{ my: 2 }}>
+          <SessionSkillBreakdown
+            strengthenedSkills={results.strengthened_skills}
+            needsWorkSkills={results.needs_work_skills}
+          />
+        </Box>
+        <Box sx={{ mb: 2 }}>
+          <NextBestPracticeCard module={skill} />
+        </Box>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, justifyContent: "flex-end", mb: 2 }}>
+          {onDiagnosticContinue && diagnosticContinueLabel ? (
+            <Button variant="contained" color="primary" onClick={() => onDiagnosticContinue()} sx={{ borderRadius: "10px", fontWeight: 700 }}>{diagnosticContinueLabel}</Button>
+          ) : (
+            <Button variant="outlined" onClick={handleReset} sx={{ borderRadius: "10px", fontWeight: 700 }}>Practice again</Button>
+          )}
+        </Box>
         <Card sx={{ mb: 3, borderRadius: "16px" }}>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="caption" color="text.secondary" fontWeight={700} textTransform="uppercase" letterSpacing={0.5} display="block" sx={{ mb: 1.5 }}>

@@ -70,9 +70,18 @@ export async function registerUser(email, password) {
   });
 }
 
-export async function generateSession({ skill = "reading", topic = null, writing_task_type = null }) {
-  const body = { skill, topic: topic || null };
+export async function generateSession({
+  skill = "reading",
+  topic = null,
+  writing_task_type = null,
+  use_adaptive = false,
+  focus_skill = null,
+  target_band = null,
+}) {
+  const body = { skill, topic: topic || null, use_adaptive };
   if (writing_task_type) body.writing_task_type = writing_task_type;
+  if (focus_skill) body.focus_skill = focus_skill;
+  if (target_band != null && target_band !== "") body.target_band = target_band;
   return request("/practice/generate", {
     method: "POST",
     body: JSON.stringify(body),
@@ -159,6 +168,18 @@ export async function fetchListeningTts(sessionId) {
 export async function fetchProgress(skill = null) {
   const q = skill ? `?skill=${encodeURIComponent(skill)}` : "";
   return request(`/progress${q}`);
+}
+
+export async function fetchSkillMap(module) {
+  return request(`/learning/skill-map?module=${encodeURIComponent(module)}`, { method: "GET" });
+}
+
+export async function fetchNextStep(module = "reading") {
+  return request(`/learning/next-step?module=${encodeURIComponent(module)}`, { method: "GET" });
+}
+
+export async function fetchWeeklyReport() {
+  return request("/learning/weekly-report", { method: "GET" });
 }
 
 export async function fetchResultDetail(resultId) {

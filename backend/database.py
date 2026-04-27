@@ -2,7 +2,7 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
@@ -216,6 +216,54 @@ async def get_progress(user_id: str, limit: int = 50, skill: Optional[str] = Non
         }
         async for doc in cursor
     ]
+
+
+async def aggregate_skill_accuracy_for_user(
+    user_id: str,
+    since_iso: Optional[str] = None,
+    until_iso: Optional[str] = None,
+) -> dict[str, dict[str, Any]]:
+    """
+    Roll up skill_outcomes across results: skill_id -> {accuracy, total, correct}.
+    """
+    match: dict = {"user_id": user_id, "is_diagnostic": {"$ne": True}}
+    time_q: dict = {}
+    if since_iso:
+        time_q["$gte"] = since_iso
+    if until_iso:
+        time_q["$lt"] = until_iso
+    if time_q:
+        match["completed_at"] = time_q
+
+    pipeline = [
+        {"$match": match},
+        {
+            "$project": {
+                "outcomes": {"$ifNull": ["$result_data.skill_outcomes", []]},
+            }
+        },
+        {"$unwind": {"path": "$outcomes", "preserveNullAndEmptyArrays": False}},
+        {
+            "$group": {
+                "_id": "$outcomes.skill_id",
+                "correct": {"$sum": {"$cond": ["$outcomes.correct", 1, 0]}},
+                "total": {"$sum": 1},
+            }
+        },
+    ]
+    out: dict[str, dict[str, Any]] = {}
+    async for doc in _db_handle().results.aggregate(pipeline):
+        sid = doc.get("_id")
+        if not sid:
+            continue
+        tot = int(doc.get("total", 0))
+        c = int(doc.get("correct", 0))
+        out[str(sid)] = {
+            "accuracy": round(c / tot, 4) if tot else 0.0,
+            "total": tot,
+            "correct": c,
+        }
+    return out
 
 
 async def get_result_detail(result_id: str, user_id: str) -> Optional[dict]:

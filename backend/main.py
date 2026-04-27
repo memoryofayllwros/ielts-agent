@@ -20,6 +20,8 @@ from models import (
     SubmitWritingRequest, SubmitSpeakingJsonRequest, ListeningTtsRequest,
     QuestionResult, ProgressResponse, ProgressEntry, ResultDetail,
     VocabSubmitRequest, VocabResult, VocabHistoryEntry,
+    SkillMapEntry, SkillMapResponse, NextStepResponse, WeeklyReportResponse,
+    JourneyPoint, ModuleOverviewEntry,
 )
 from ai import generate_practice_session, generate_diagnostic_reading_session
 from diagnostic import (
@@ -43,6 +45,27 @@ from database import (
     diagnostic_status, record_diagnostic_skill_outcome,
     save_vocab_session, get_vocab_session,
     save_vocab_result, get_vocab_history, get_vocab_result,
+    aggregate_skill_accuracy_for_user,
+)
+from learning import (
+    compare_weekly_skills,
+    difficulty_string_from_band,
+    format_band_label,
+    module_weighted_score,
+    question_results_to_skill_outcomes,
+    recommend_focus_skill,
+    session_summary_strengthened_needs,
+    skill_mastery_status,
+    skill_trend_delta,
+    speaking_evaluation_to_skill_outcomes,
+    week_bounds_utc,
+    writing_evaluation_to_skill_outcomes,
+)
+from skills_taxonomy import (
+    get_skill_label,
+    skill_ids_for_module,
+    get_skill_meta,
+    focus_practice_bullets_for_skill,
 )
 from vocab_agent import generate_vocab_test, estimate_level
 
@@ -125,6 +148,8 @@ def _questions_safe(raw: dict) -> list:
                 "word_bank": q.get("word_bank"),
                 "question": q.get("question"),
                 "options": q.get("options"),
+                "skill_id": q.get("skill_id"),
+                "difficulty": q.get("difficulty"),
             }
         )
     return out
@@ -135,6 +160,23 @@ def _questions_safe(raw: dict) -> list:
 async def _learner_band_hint(user_id: str):
     user = await get_user_by_id(user_id)
     return average_diagnostic_band(user)
+
+
+async def _resolve_practice_focus(
+    user_id: str,
+    skill: str,
+    req: GenerateRequest,
+) -> tuple[Optional[str], str]:
+    user = await get_user_by_id(user_id)
+    band = req.target_band if req.target_band is not None else average_diagnostic_band(user)
+    dd = difficulty_string_from_band(band)
+    focus: Optional[str] = None
+    if req.use_adaptive:
+        acc = await aggregate_skill_accuracy_for_user(user_id)
+        focus = recommend_focus_skill(acc, skill)
+    elif req.focus_skill:
+        focus = req.focus_skill.strip() or None
+    return focus, dd
 
 
 @app.get("/api/diagnostic/status")
@@ -154,11 +196,13 @@ async def diagnostic_generate(req: DiagnosticGenerateRequest, user_id: str = Dep
             detail=f"The {step} diagnostic section is already complete. Continue with another skill.",
         )
     topic = req.topic
+    learner_band = await _learner_band_hint(user_id)
+    dd = difficulty_string_from_band(learner_band)
     try:
         if step == "reading":
-            raw = await generate_diagnostic_reading_session(topic)
+            raw = await generate_diagnostic_reading_session(topic, default_difficulty=dd)
         elif step == "listening":
-            raw = await listening_agent(topic, diagnostic=True)
+            raw = await listening_agent(topic, diagnostic=True, default_difficulty=dd)
         elif step == "writing":
             raw = await writing_agent(topic, "write_essay", diagnostic=True)
         else:
@@ -191,21 +235,38 @@ async def diagnostic_generate(req: DiagnosticGenerateRequest, user_id: str = Dep
 async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user_id)):
     skill = req.skill
     learner_band = await _learner_band_hint(user_id)
+    focus_micro, dd = await _resolve_practice_focus(user_id, skill, req)
     try:
         if skill == "reading":
-            raw = await generate_practice_session(req.topic, learner_band=learner_band)
+            raw = await generate_practice_session(
+                req.topic,
+                learner_band=learner_band,
+                focus_micro_skill=focus_micro,
+                default_difficulty=dd,
+            )
         elif skill == "listening":
-            raw = await listening_agent(req.topic, learner_band=learner_band)
+            raw = await listening_agent(
+                req.topic,
+                learner_band=learner_band,
+                focus_micro_skill=focus_micro,
+                default_difficulty=dd,
+            )
         elif skill == "writing":
             wtype = req.writing_task_type or "write_essay"
-            raw = await writing_agent(req.topic, wtype, learner_band=learner_band)
+            raw = await writing_agent(
+                req.topic, wtype, learner_band=learner_band, focus_micro_skill=focus_micro
+            )
         else:
-            raw = await speaking_agent(req.topic, learner_band=learner_band)
+            raw = await speaking_agent(req.topic, learner_band=learner_band, focus_micro_skill=focus_micro)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
 
     session_id = await save_session(raw, user_id, skill=skill)
 
+    common_meta = {
+        "recommended_focus": focus_micro,
+        "difficulty": dd,
+    }
     if skill in ("reading", "listening"):
         return {
             "session_id": session_id,
@@ -214,14 +275,15 @@ async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user
             "passage": raw.get("passage", ""),
             "transcript": raw.get("transcript") if skill == "listening" else None,
             "questions": _questions_safe(raw),
+            **common_meta,
         }
 
     if skill == "writing":
         client_payload = {k: v for k, v in raw.items() if k != "model_answer"}
-        return {"session_id": session_id, "skill": skill, **client_payload}
+        return {"session_id": session_id, "skill": skill, **client_payload, **common_meta}
 
     client_sp = {k: v for k, v in raw.items() if k != "model_outline"}
-    return {"session_id": session_id, "skill": skill, **client_sp}
+    return {"session_id": session_id, "skill": skill, **client_sp, **common_meta}
 
 
 @app.post("/api/practice/submit", response_model=SubmitResponse)
@@ -261,11 +323,16 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
             passage_with_blanks=q.get("passage_with_blanks"),
             word_bank=q.get("word_bank"),
             options=q.get("options"),
+            skill_id=q.get("skill_id"),
+            difficulty=q.get("difficulty"),
         ))
 
     percentage = round((total_earned / total_max * 100) if total_max > 0 else 0, 1)
 
     is_diag = bool(rec.get("is_diagnostic"))
+    qr_dicts = [r.model_dump() for r in question_results]
+    skill_outcomes = question_results_to_skill_outcomes(qr_dicts, skill)
+    st_skills, nw_skills = session_summary_strengthened_needs(skill_outcomes)
     await save_result(
         session_id=req.session_id,
         user_id=user_id,
@@ -273,7 +340,10 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
         percentage=percentage,
         total_score=total_earned,
         max_score=total_max,
-        result_data={"question_results": [r.model_dump() for r in question_results]},
+        result_data={
+            "question_results": qr_dicts,
+            "skill_outcomes": skill_outcomes,
+        },
         skill=skill,
         is_diagnostic=is_diag,
     )
@@ -288,7 +358,10 @@ async def submit(req: SubmitRequest, user_id: str = Depends(get_current_user_id)
         total_score=total_earned,
         max_score=total_max,
         percentage=percentage,
+        estimated_band=percentage_to_estimated_band(percentage),
         question_results=question_results,
+        strengthened_skills=st_skills,
+        needs_work_skills=nw_skills,
     )
 
 
@@ -321,6 +394,8 @@ async def submit_writing(req: SubmitWritingRequest, user_id: str = Depends(get_c
     }
 
     is_diag = bool(rec.get("is_diagnostic"))
+    skill_outcomes = writing_evaluation_to_skill_outcomes(evaluation, session)
+    st_skills, nw_skills = session_summary_strengthened_needs(skill_outcomes)
     await save_result(
         session_id=req.session_id,
         user_id=user_id,
@@ -332,6 +407,7 @@ async def submit_writing(req: SubmitWritingRequest, user_id: str = Depends(get_c
             "user_response": text,
             "evaluation": evaluation,
             "writing_task_summary": summary,
+            "skill_outcomes": skill_outcomes,
         },
         skill="writing",
         is_diagnostic=is_diag,
@@ -341,7 +417,13 @@ async def submit_writing(req: SubmitWritingRequest, user_id: str = Depends(get_c
             user_id, "writing", rubric_band_to_numeric(evaluation.get("band")),
         )
 
-    return {"session_id": req.session_id, "topic": session.get("topic"), "evaluation": evaluation}
+    return {
+        "session_id": req.session_id,
+        "topic": session.get("topic"),
+        "evaluation": evaluation,
+        "strengthened_skills": st_skills,
+        "needs_work_skills": nw_skills,
+    }
 
 
 async def _submit_speaking_impl(
@@ -396,6 +478,8 @@ async def _submit_speaking_impl(
     }
 
     is_diag = bool(rec.get("is_diagnostic"))
+    skill_outcomes = speaking_evaluation_to_skill_outcomes(evaluation)
+    st_skills, nw_skills = session_summary_strengthened_needs(skill_outcomes)
     await save_result(
         session_id=session_id,
         user_id=user_id,
@@ -407,6 +491,7 @@ async def _submit_speaking_impl(
             "user_response": text,
             "evaluation": evaluation,
             "speaking_task": speaking_task,
+            "skill_outcomes": skill_outcomes,
         },
         skill="speaking",
         is_diagnostic=is_diag,
@@ -416,7 +501,13 @@ async def _submit_speaking_impl(
             user_id, "speaking", rubric_band_to_numeric(evaluation.get("band")),
         )
 
-    return {"session_id": session_id, "topic": session.get("topic"), "evaluation": evaluation}
+    return {
+        "session_id": session_id,
+        "topic": session.get("topic"),
+        "evaluation": evaluation,
+        "strengthened_skills": st_skills,
+        "needs_work_skills": nw_skills,
+    }
 
 
 @app.post("/api/practice/submit-speaking")
@@ -474,6 +565,153 @@ async def progress(
     entries = [ProgressEntry(**e) for e in entries_raw]
     avg = round(sum(e.percentage for e in entries) / len(entries), 1) if entries else 0.0
     return ProgressResponse(entries=entries, total_sessions=len(entries), average_percentage=avg)
+
+
+@app.get("/api/learning/skill-map", response_model=SkillMapResponse)
+async def learning_skill_map(
+    module: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    if module not in ("reading", "listening", "writing", "speaking"):
+        raise HTTPException(status_code=400, detail="Invalid module")
+    last7, prev7, _ = week_bounds_utc()
+    acc = await aggregate_skill_accuracy_for_user(user_id)
+    acc_recent = await aggregate_skill_accuracy_for_user(user_id, since_iso=last7)
+    acc_prev = await aggregate_skill_accuracy_for_user(user_id, since_iso=prev7, until_iso=last7)
+
+    overview = [
+        ModuleOverviewEntry(module=m, score=module_weighted_score(acc, m))
+        for m in ("reading", "listening", "writing", "speaking")
+    ]
+
+    skills: list[SkillMapEntry] = []
+    for sid in skill_ids_for_module(module):
+        r = acc.get(sid) or {}
+        tot = int(r.get("total", 0))
+        c = int(r.get("correct", 0))
+        a = float(r.get("accuracy", 0.0))
+        trend = skill_trend_delta(acc_recent, acc_prev, sid)
+        st = skill_mastery_status(a, tot)
+
+        journey: list[JourneyPoint] = []
+        rp = acc_prev.get(sid) or {}
+        rr = acc_recent.get(sid) or {}
+        if int(rp.get("total", 0)) >= 1:
+            journey.append(
+                JourneyPoint(
+                    label="Prior 7 days",
+                    accuracy=round(float(rp.get("accuracy", 0.0)), 4),
+                )
+            )
+        if int(rr.get("total", 0)) >= 1:
+            journey.append(
+                JourneyPoint(
+                    label="Last 7 days",
+                    accuracy=round(float(rr.get("accuracy", 0.0)), 4),
+                )
+            )
+
+        skills.append(
+            SkillMapEntry(
+                skill_id=sid,
+                label=get_skill_label(sid),
+                correct=c,
+                total=tot,
+                accuracy=round(a, 4),
+                attempts=tot,
+                trend=round(trend, 4),
+                status=st,
+                journey=journey,
+            )
+        )
+    skills.sort(key=lambda x: (x.total < 1, x.accuracy if x.total > 0 else 1.0, x.label))
+    return SkillMapResponse(module=module, overview=overview, skills=skills)
+
+
+@app.get("/api/learning/next-step", response_model=NextStepResponse)
+async def learning_next_step(
+    module: str = "reading",
+    user_id: str = Depends(get_current_user_id),
+):
+    if module not in ("reading", "listening", "writing", "speaking"):
+        raise HTTPException(status_code=400, detail="Invalid module")
+    user = await get_user_by_id(user_id)
+    band = average_diagnostic_band(user)
+    dd = difficulty_string_from_band(band)
+    band_lbl = format_band_label(dd)
+
+    acc = await aggregate_skill_accuracy_for_user(user_id)
+    focus = recommend_focus_skill(acc, module)
+    if not focus:
+        return NextStepResponse(
+            message="Complete a few practice sets to get a personalised focus.",
+            module=module,
+            difficulty=dd,
+            reason="The planner needs a bit of outcome data before it can rank your micro-skills.",
+            suggested_practice=f"Try any {module} practice session at {band_lbl}.",
+            focus_description="",
+            focus_practice_bullets=[],
+        )
+    lbl = get_skill_label(focus)
+    meta = get_skill_meta(focus)
+    f_desc = str(meta.get("description", ""))
+    f_bullets = focus_practice_bullets_for_skill(focus)
+    row = acc.get(focus) or {}
+    pct = int(round(float(row.get("accuracy", 0.0)) * 100))
+    tot = int(row.get("total", 0))
+    if tot >= 1:
+        others = [
+            float((acc.get(sid) or {}).get("accuracy", 0.0))
+            for sid in skill_ids_for_module(module)
+            if sid != focus and int((acc.get(sid) or {}).get("total", 0)) >= 1
+        ]
+        oth_avg = sum(others) / len(others) if others else 0.5
+        if float(row.get("accuracy", 0.0)) + 0.08 < oth_avg:
+            reason = (
+                f"Your accuracy on {lbl} ({pct}%) is lower than your other {module} skills "
+                f"you have practised — extra reps here will raise your overall {module} level fastest."
+            )
+        else:
+            reason = (
+                f"Among the skills you have tried, {lbl} has the lowest accuracy ({pct}%). "
+                "Short targeted sets help lock this in."
+            )
+    else:
+        reason = (
+            f"You have not logged many tagged attempts on {lbl} yet. "
+            f"The planner suggests this as a starting focus for {module}."
+        )
+
+    suggested = f"{module.capitalize()} · {band_lbl} — one session emphasising this micro-skill."
+
+    return NextStepResponse(
+        focus_skill=focus,
+        focus_label=lbl,
+        focus_skill_label=lbl,
+        focus_description=f_desc,
+        focus_practice_bullets=f_bullets,
+        module=module,
+        message=f"Next: {lbl}",
+        reason=reason,
+        difficulty=dd,
+        suggested_practice=suggested,
+    )
+
+
+@app.get("/api/learning/weekly-report", response_model=WeeklyReportResponse)
+async def learning_weekly_report(user_id: str = Depends(get_current_user_id)):
+    last7, prev7, _ = week_bounds_utc()
+    acc_now = await aggregate_skill_accuracy_for_user(user_id, since_iso=last7)
+    acc_prev = await aggregate_skill_accuracy_for_user(user_id, since_iso=prev7, until_iso=last7)
+    imp, weak = compare_weekly_skills(acc_now, acc_prev)
+    tot_items = sum(int(v.get("total", 0)) for v in acc_now.values())
+    return WeeklyReportResponse(
+        period_days=7,
+        total_items=tot_items,
+        skills_touched=len(acc_now),
+        biggest_improvement=imp,
+        still_weak=weak,
+    )
 
 
 def _score_question(qtype: str, correct: list, user: list) -> tuple[float, float]:

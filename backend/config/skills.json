@@ -1,0 +1,146 @@
+{
+  "modules": {
+    "reading": {
+      "label": "Reading",
+      "clusters": {
+        "R1": {
+          "label": "Information navigation",
+          "skills": [
+            {"id": "R1.1_skimming_main_idea", "label": "Skimming — main idea", "description": "Quickly identify the main idea of a passage or section."},
+            {"id": "R1.2_scanning_specific_information", "label": "Scanning — specific information", "description": "Locate specific facts, names, numbers, or details."},
+            {"id": "R1.3_paragraph_topic_identification", "label": "Paragraph topic identification", "description": "Identify the main idea of a paragraph or section."}
+          ]
+        },
+        "R2": {
+          "label": "Lexical and paraphrase",
+          "skills": [
+            {"id": "R2.1_synonym_matching", "label": "Synonym matching", "description": "Match questions to text using synonyms."},
+            {"id": "R2.2_paraphrase_recognition", "label": "Paraphrase recognition", "description": "Recognise when the question restates the passage in different words."},
+            {"id": "R2.3_keyword_mapping", "label": "Keyword mapping", "description": "Map question keywords to the relevant part of the text."}
+          ]
+        },
+        "R3": {
+          "label": "Detail comprehension",
+          "skills": [
+            {"id": "R3.1_factual_detail_extraction", "label": "Factual detail extraction", "description": "Extract and understand explicit details."},
+            {"id": "R3.2_comparison_identification", "label": "Comparison identification", "description": "Identify comparisons, contrasts, and relationships."}
+          ]
+        },
+        "R4": {
+          "label": "Logical reasoning",
+          "skills": [
+            {"id": "R4.1_inference_from_context", "label": "Inference from context", "description": "Draw conclusions implied but not directly stated."},
+            {"id": "R4.2_cause_effect_reasoning", "label": "Cause and effect reasoning", "description": "Follow cause–effect and logical links."}
+          ]
+        },
+        "R5": {
+          "label": "Global understanding",
+          "skills": [
+            {"id": "R5.1_author_opinion_identification", "label": "Author opinion identification", "description": "Identify stance, attitude, and opinion."},
+            {"id": "R5.2_argument_structure", "label": "Argument structure", "description": "Understand how the argument is built (claims, support, conclusion)."}
+          ]
+        }
+      }
+    },
+    "listening": {
+      "label": "Listening",
+      "clusters": {
+        "L1": {
+          "label": "Speech decoding",
+          "skills": [
+            {"id": "L1.1_connected_speech_recognition", "label": "Connected speech", "description": "Follow natural, linked speech in audio."},
+            {"id": "L1.2_number_and_spelling_recognition", "label": "Numbers and spelling", "description": "Catch numbers, dates, and spelled-out words."}
+          ]
+        },
+        "L2": {
+          "label": "Information capture",
+          "skills": [
+            {"id": "L2.1_specific_detail_capture", "label": "Specific detail capture", "description": "Grasp specific facts from what you hear."},
+            {"id": "L2.2_form_completion", "label": "Form completion", "description": "Complete gaps with heard information."}
+          ]
+        },
+        "L3": {
+          "label": "Meaning interpretation",
+          "skills": [
+            {"id": "L3.1_paraphrase_recognition", "label": "Paraphrase recognition (listening)", "description": "Match questions to audio that uses different wording."},
+            {"id": "L3.2_speaker_intention", "label": "Speaker intention", "description": "Infer purpose, plan, and intent."}
+          ]
+        },
+        "L4": {
+          "label": "Context reasoning",
+          "skills": [
+            {"id": "L4.1_inference_from_dialogue", "label": "Inference from dialogue", "description": "Infer unstated information from talk."},
+            {"id": "L4.2_attitude_detection", "label": "Attitude detection", "description": "Detect attitude, agreement, and tone."}
+          ]
+        }
+      }
+    },
+    "writing": {
+      "label": "Writing",
+      "clusters": {
+        "W1": {
+          "label": "Task achievement",
+          "skills": [
+            {"id": "W1.1_task_response_completeness", "label": "Task response completeness", "description": "Address all parts of the task."},
+            {"id": "W1.2_idea_relevance", "label": "Idea relevance", "description": "Keep ideas on-topic and well developed."}
+          ]
+        },
+        "W2": {
+          "label": "Organisation and coherence",
+          "skills": [
+            {"id": "W2.1_paragraph_structure", "label": "Paragraph structure", "description": "Clear paragraphing and progression."},
+            {"id": "W2.2_logical_flow", "label": "Logical flow", "description": "Logical order of ideas."},
+            {"id": "W2.3_cohesion_devices", "label": "Cohesion devices", "description": "Linking and referencing."}
+          ]
+        },
+        "W3": {
+          "label": "Lexical resource",
+          "skills": [
+            {"id": "W3.1_vocabulary_range", "label": "Vocabulary range", "description": "Range and precision of vocabulary."},
+            {"id": "W3.2_paraphrase_usage", "label": "Paraphrase usage (writing)", "description": "Paraphrase and collocation in writing."}
+          ]
+        },
+        "W4": {
+          "label": "Grammatical range",
+          "skills": [
+            {"id": "W4.1_grammar_accuracy", "label": "Grammar accuracy", "description": "Control of grammar and error rate."},
+            {"id": "W4.2_sentence_complexity", "label": "Sentence complexity", "description": "Mix of simple and complex structures."}
+          ]
+        }
+      }
+    },
+    "speaking": {
+      "label": "Speaking",
+      "clusters": {
+        "S1": {
+          "label": "Fluency",
+          "skills": [
+            {"id": "S1.1_speech_continuity", "label": "Speech continuity", "description": "Sustain speech with few unnatural pauses."},
+            {"id": "S1.2_hesitation_control", "label": "Hesitation control", "description": "Limit hesitation and self-correction."}
+          ]
+        },
+        "S2": {
+          "label": "Pronunciation",
+          "skills": [
+            {"id": "S2.1_clarity_of_pronunciation", "label": "Clarity of pronunciation", "description": "Clarity and intelligibility (from text cues)."},
+            {"id": "S2.2_stress_and_intonation", "label": "Stress and intonation", "description": "Word stress and intonation patterns (inferred)."}
+          ]
+        },
+        "S3": {
+          "label": "Lexical resource",
+          "skills": [
+            {"id": "S3.1_vocabulary_range", "label": "Vocabulary range (speaking)", "description": "Range and precision in speech."},
+            {"id": "S3.2_paraphrase_usage", "label": "Paraphrase usage (speaking)", "description": "Paraphrase and word choice in speech."}
+          ]
+        },
+        "S4": {
+          "label": "Grammar",
+          "skills": [
+            {"id": "S4.1_grammar_accuracy", "label": "Grammar accuracy (speaking)", "description": "Control of structures in speech."},
+            {"id": "S4.2_sentence_complexity", "label": "Sentence complexity (speaking)", "description": "Range of structures used orally."}
+          ]
+        }
+      }
+    }
+  }
+}

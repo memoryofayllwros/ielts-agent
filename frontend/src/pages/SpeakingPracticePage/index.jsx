@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -11,6 +12,8 @@ import Chip from "@mui/material/Chip";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
+import SessionSkillBreakdown from "components/LearningLoop/SessionSkillBreakdown";
+import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 import { generateSession, submitSpeakingForm, submitSpeakingJson } from "services/api";
 
 function EvaluationView({ evaluation }) {
@@ -46,12 +49,17 @@ export default function SpeakingPracticePage({
   onDiagnosticContinue = null,
   diagnosticContinueLabel = null,
 }) {
+  const [sp] = useSearchParams();
+  const useAdaptive = sp.get("adaptive") === "1";
+  const focusSkill = sp.get("focus") || sp.get("focus_skill") || null;
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState(null);
   const [transcript, setTranscript] = useState("");
   const [evaluation, setEvaluation] = useState(null);
+  const [strengthenedSkills, setStrengthenedSkills] = useState([]);
+  const [needsWorkSkills, setNeedsWorkSkills] = useState([]);
   const [recording, setRecording] = useState(false);
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
@@ -119,10 +127,17 @@ export default function SpeakingPracticePage({
     setError("");
     setLoading(true);
     try {
-      const data = await generateSession({ skill: "speaking", topic: topic.trim() || null });
+      const data = await generateSession({
+        skill: "speaking",
+        topic: topic.trim() || null,
+        use_adaptive: useAdaptive,
+        focus_skill: focusSkill || null,
+      });
       setSession(data);
       setTranscript("");
       setEvaluation(null);
+      setStrengthenedSkills([]);
+      setNeedsWorkSkills([]);
       chunksRef.current = [];
     } catch (e) {
       setError(e.message || "Failed to generate");
@@ -147,6 +162,8 @@ export default function SpeakingPracticePage({
         throw new Error("Record audio or enter a transcript.");
       }
       setEvaluation(res.evaluation);
+      setStrengthenedSkills(res.strengthened_skills || []);
+      setNeedsWorkSkills(res.needs_work_skills || []);
     } catch (e) {
       setError(e.message || "Submit failed");
     } finally {
@@ -162,6 +179,8 @@ export default function SpeakingPracticePage({
     setSession(null);
     setTranscript("");
     setEvaluation(null);
+    setStrengthenedSkills([]);
+    setNeedsWorkSkills([]);
     setError("");
     setTopic("");
     chunksRef.current = [];
@@ -185,8 +204,13 @@ export default function SpeakingPracticePage({
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>IELTS Speaking (Part 2)</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Record your answer or use live dictation / typed transcript. With OPENROUTER_API_KEY on the server, audio is transcribed via OpenRouter.
+                Record your answer or use live dictation / typed transcript. With OPENROUTER_API_KEY on the server, audio is transcribed via OpenRouter. Rubric scores map to micro-skills.
               </Typography>
+              {useAdaptive && (
+                <Alert severity="info" sx={{ mb: 2, borderRadius: "8px" }}>
+                  Adaptive: the cue card is shaped toward your weakest speaking micro-skill.
+                </Alert>
+              )}
               {!prefetchedSession?.session_id && (
               <TextField label="Theme hint (optional)" value={topic} onChange={(e) => setTopic(e.target.value)} fullWidth size="small" sx={{ mb: 2 }} />
               )}
@@ -273,6 +297,12 @@ export default function SpeakingPracticePage({
             <Typography variant="caption" color="text.secondary">Approximate score (from transcript)</Typography>
             <Typography variant="h4" fontWeight={700} color="primary">{evaluation.percentage}%</Typography>
             <EvaluationView evaluation={evaluation} />
+            <Box sx={{ my: 2 }}>
+              <SessionSkillBreakdown strengthenedSkills={strengthenedSkills} needsWorkSkills={needsWorkSkills} />
+            </Box>
+            <Box sx={{ my: 2 }}>
+              <NextBestPracticeCard module="speaking" />
+            </Box>
             {onDiagnosticContinue && diagnosticContinueLabel ? (
               <Button sx={{ mt: 3 }} variant="contained" onClick={() => onDiagnosticContinue()}>{diagnosticContinueLabel}</Button>
             ) : (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -12,6 +13,8 @@ import MenuItem from "@mui/material/MenuItem";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
+import SessionSkillBreakdown from "components/LearningLoop/SessionSkillBreakdown";
+import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 import { generateSession, submitWriting } from "services/api";
 
 function wordCount(s) {
@@ -51,6 +54,9 @@ export default function WritingPracticePage({
   onDiagnosticContinue = null,
   diagnosticContinueLabel = null,
 }) {
+  const [sp] = useSearchParams();
+  const useAdaptive = sp.get("adaptive") === "1";
+  const focusSkill = sp.get("focus") || sp.get("focus_skill") || null;
   const [topic, setTopic] = useState("");
   const [taskType, setTaskType] = useState("write_essay");
   const [loading, setLoading] = useState(false);
@@ -58,6 +64,8 @@ export default function WritingPracticePage({
   const [session, setSession] = useState(null);
   const [text, setText] = useState("");
   const [evaluation, setEvaluation] = useState(null);
+  const [strengthenedSkills, setStrengthenedSkills] = useState([]);
+  const [needsWorkSkills, setNeedsWorkSkills] = useState([]);
 
   useEffect(() => {
     if (prefetchedSession?.session_id) {
@@ -79,10 +87,14 @@ export default function WritingPracticePage({
         skill: "writing",
         topic: topic.trim() || null,
         writing_task_type: taskType,
+        use_adaptive: useAdaptive,
+        focus_skill: focusSkill || null,
       });
       setSession(data);
       setText("");
       setEvaluation(null);
+      setStrengthenedSkills([]);
+      setNeedsWorkSkills([]);
     } catch (e) {
       setError(e.message || "Failed to generate");
     } finally {
@@ -105,6 +117,8 @@ export default function WritingPracticePage({
     try {
       const res = await submitWriting(session.session_id, text);
       setEvaluation(res.evaluation);
+      setStrengthenedSkills(res.strengthened_skills || []);
+      setNeedsWorkSkills(res.needs_work_skills || []);
     } catch (e) {
       setError(e.message || "Evaluation failed");
     } finally {
@@ -120,6 +134,8 @@ export default function WritingPracticePage({
     setSession(null);
     setText("");
     setEvaluation(null);
+    setStrengthenedSkills([]);
+    setNeedsWorkSkills([]);
     setError("");
     setTopic("");
   };
@@ -142,8 +158,13 @@ export default function WritingPracticePage({
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>IELTS Writing</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Task 1 (report) or Task 2 (essay). Your work is scored against IELTS-style criteria.
+                Task 1 (report) or Task 2 (essay). Your work is scored against IELTS-style criteria. Micro-skill feedback is derived from the rubric.
               </Typography>
+              {useAdaptive && (
+                <Alert severity="info" sx={{ mb: 2, borderRadius: "8px" }}>
+                  Adaptive: the prompt is biased toward your weakest writing micro-skill.
+                </Alert>
+              )}
               {!prefetchedSession?.session_id && (
               <>
               <TextField
@@ -250,6 +271,12 @@ export default function WritingPracticePage({
             <Typography variant="caption" color="text.secondary">Score (rubric-based)</Typography>
             <Typography variant="h4" fontWeight={700} color="primary">{evaluation.percentage}%</Typography>
             <EvaluationView evaluation={evaluation} />
+            <Box sx={{ my: 2 }}>
+              <SessionSkillBreakdown strengthenedSkills={strengthenedSkills} needsWorkSkills={needsWorkSkills} />
+            </Box>
+            <Box sx={{ my: 2 }}>
+              <NextBestPracticeCard module="writing" />
+            </Box>
             {onDiagnosticContinue && diagnosticContinueLabel ? (
               <Button sx={{ mt: 3 }} variant="contained" onClick={() => onDiagnosticContinue()}>{diagnosticContinueLabel}</Button>
             ) : (

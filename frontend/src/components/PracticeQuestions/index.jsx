@@ -13,6 +13,7 @@ import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
+import { humanizeSkillId } from "utils/skillLabel";
 
 export function optionKey(opt) {
   return opt.match(/^([A-E])\./)?.[1] || opt[0];
@@ -219,6 +220,16 @@ export function QuestionCard({ question, index, answers, onAnswer, submitted, re
             {question?.question && (
               <Typography variant="body2" sx={{ color: "#344767" }}>{question.question}</Typography>
             )}
+          </Box>
+        )}
+        {submitted && result && !result.is_correct && result.skill_id && (
+          <Box sx={{ mt: 2, p: 2, background: "rgba(211, 47, 47, 0.04)", borderRadius: "10px", borderLeft: "3px solid", borderColor: "error.light" }}>
+            <Typography variant="caption" color="error" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
+              Skill issue
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              {humanizeSkillId(result.skill_id)}
+            </Typography>
           </Box>
         )}
         {submitted && result?.explanation && (

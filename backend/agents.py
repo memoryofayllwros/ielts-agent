@@ -1,19 +1,6 @@
 """
-Multi-agent orchestration for IELTS / PTE practice.
-
-Flow:
-  User message
-      │
-  SupervisorAgent  (tool_use routing)
-      ├── invoke_reading_agent  ──►  ReadingAgent
-      ├── invoke_writing_agent  ──►  WritingAgent
-      │                                 ├── summarize_written_text  (IELTS Writing Task 1 Academic)
-      │                                 └── write_essay  (IELTS Writing Task 2)
-      └── invoke_vocab_agent    ──►  VocabAgent  (20-question CEFR level test A2–C2)
-
-Each agent is a pure async function.  The supervisor uses tool_use to decide
-which sub-agent to call; the sub-agent then calls the model again to generate
-the actual practice content as JSON.
+IELTS practice agents: listening, writing, speaking (shared LLM client / JSON from ai).
+Reading generation lives in ai.py; API routes call ai + these agents directly.
 """
 
 import asyncio
@@ -22,7 +9,9 @@ import os
 from statistics import median
 from typing import Optional
 
-from ai import _get_client, MODEL, _extract_json
+from ai import _get_client, MODEL, _extract_json, normalize_objective_session
+from learning import difficulty_string_from_band
+from skills_taxonomy import allowlist_prompt_lines, get_skill_label, is_valid_skill_id
 
 
 def _eval_judge_count() -> int:
@@ -149,173 +138,6 @@ def _aggregate_evaluations(
     return _recompute_eval_totals(out)
 
 
-# ── Supervisor ────────────────────────────────────────────────────────────────
-
-SUPERVISOR_SYSTEM = """\
-You are an IELTS practice supervisor. Your ONLY job is to analyse the \
-user's request and call the appropriate tool.
-
-Call invoke_reading_agent when the user wants:
-  • Reading comprehension practice
-  • Fill-in-the-blanks or multiple-choice questions
-  • A passage to read and answer questions about
-  • Any general "practice" request with no clear writing intent
-
-Call invoke_writing_agent when the user wants:
-  • IELTS Writing Task 2 essay practice
-  • IELTS Writing Task 1 (describe charts, tables, processes, maps)
-  • Summarising or describing data in writing
-  • Writing feedback or a writing task
-  • Any request that involves the user producing written output
-
-Call invoke_vocab_agent when the user wants:
-  • A vocabulary test or quiz
-  • To find out their vocabulary level or CEFR level
-  • To check how many words they know
-  • Any request mentioning "vocab", "vocabulary", "word level", or "word test"
-
-Always call exactly one tool. Never respond with plain text."""
-
-SUPERVISOR_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "invoke_reading_agent",
-            "description": (
-                "Route to the IELTS Academic Reading practice agent. "
-                "Generates a passage with fill-in-blanks and multiple-choice questions."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string",
-                        "description": "Optional topic hint (e.g. 'climate change', 'AI'). "
-                                       "Omit if the user didn't specify one.",
-                    }
-                },
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "invoke_writing_agent",
-            "description": (
-                "Route to the IELTS Writing practice agent. "
-                "Generates either a Task 2 essay prompt or a Task 1 Academic report task."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string",
-                        "description": "Optional topic hint. Omit if not specified.",
-                    },
-                    "task_type": {
-                        "type": "string",
-                        "enum": ["write_essay", "summarize_written_text"],
-                        "description": (
-                            "write_essay: IELTS Writing Task 2 — at least 250 words, discursive/argumentative. "
-                            "summarize_written_text: IELTS Writing Task 1 Academic — describe visual information "
-                            "given as text (150+ words). "
-                            "Default to write_essay when the user doesn't specify."
-                        ),
-                    },
-                },
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "invoke_vocab_agent",
-            "description": (
-                "Route to the Vocabulary Level Test agent. "
-                "Generates a 20-question CEFR-levelled vocabulary test (A2–C2) "
-                "and estimates the learner's vocabulary level and size after completion."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string",
-                        "description": "Optional topic for vocabulary focus (e.g. 'technology', 'environment'). "
-                                       "Omit for a general mixed-topic test.",
-                    }
-                },
-                "required": [],
-            },
-        },
-    },
-]
-
-
-async def supervisor_agent(user_message: str) -> dict:
-    """
-    Analyses the user's request and routes to the appropriate sub-agent.
-    Returns the sub-agent's output with an extra 'agent_type' key added.
-    """
-    client = _get_client()
-
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": SUPERVISOR_SYSTEM},
-            {"role": "user", "content": user_message},
-        ],
-        tools=SUPERVISOR_TOOLS,
-        tool_choice="required",
-        max_tokens=512,
-    )
-
-    msg = response.choices[0].message
-
-    if msg.tool_calls:
-        call = msg.tool_calls[0]
-        try:
-            args = json.loads(call.function.arguments or "{}")
-        except json.JSONDecodeError:
-            args = {}
-
-        if call.function.name == "invoke_reading_agent":
-            result = await reading_agent(args.get("topic"))
-            result["agent_type"] = "reading"
-            return result
-
-        if call.function.name == "invoke_writing_agent":
-            result = await writing_agent(
-                args.get("topic"),
-                args.get("task_type", "write_essay"),
-            )
-            result["agent_type"] = "writing"
-            return result
-
-        if call.function.name == "invoke_vocab_agent":
-            from vocab_agent import generate_vocab_test
-            result = await generate_vocab_test(args.get("topic"))
-            result["agent_type"] = "vocab"
-            return result
-
-    # Fallback: default to reading if tool_choice was somehow ignored
-    result = await reading_agent(None)
-    result["agent_type"] = "reading"
-    return result
-
-
-# ── Reading agent ─────────────────────────────────────────────────────────────
-
-async def reading_agent(topic: Optional[str], learner_band: Optional[float] = None) -> dict:
-    """
-    Wraps the existing reading-session generator.
-    Returns the same schema as generate_practice_session().
-    """
-    from ai import generate_practice_session
-    return await generate_practice_session(topic, learner_band=learner_band)
-
-
 # ── Writing agent ─────────────────────────────────────────────────────────────
 
 _WRITING_SYSTEM = """\
@@ -331,6 +153,7 @@ def _build_writing_prompt(
     task_type: str,
     learner_band: Optional[float] = None,
     diagnostic: bool = False,
+    focus_micro_skill: Optional[str] = None,
 ) -> str:
     topic_line = (
         f"Topic: {topic}"
@@ -344,11 +167,18 @@ def _build_writing_prompt(
             "Match task difficulty and model answer style to this level.\n"
         )
 
+    focus_line = ""
+    if focus_micro_skill and is_valid_skill_id(focus_micro_skill, "writing"):
+        focus_line = (
+            f"\nNudge the task so the student practises: {get_skill_label(focus_micro_skill)} "
+            f"({focus_micro_skill}).\n"
+        )
+
     if task_type == "summarize_written_text":
         return f"""\
 Create an IELTS Writing Task 1 Academic practice task.
 
-{topic_line}{level_line}
+{topic_line}{level_line}{focus_line}
 
 The "passage" field must be a clear written description of data as if describing a chart, table, bar graph, line graph, pie chart, process diagram, or map (no image — only text). The student will write a formal report summarising the information.
 
@@ -393,7 +223,7 @@ Return a JSON object with exactly these fields:
     return f"""\
 Create an IELTS Writing Task 2 practice task.
 
-{topic_line}{level_line}{diag_note}
+{topic_line}{level_line}{focus_line}{diag_note}
 
 Return a JSON object with exactly these fields:
 
@@ -425,13 +255,16 @@ async def writing_agent(
     task_type: str = "write_essay",
     learner_band: Optional[float] = None,
     diagnostic: bool = False,
+    focus_micro_skill: Optional[str] = None,
 ) -> dict:
     """
     Generates an IELTS writing practice task (Task 1 report or Task 2 essay).
     Returns a dict with agent_type, task_type, topic, prompt/passage, scoring criteria, etc.
     """
     client = _get_client()
-    prompt = _build_writing_prompt(topic, task_type, learner_band=learner_band, diagnostic=diagnostic)
+    prompt = _build_writing_prompt(
+        topic, task_type, learner_band=learner_band, diagnostic=diagnostic, focus_micro_skill=focus_micro_skill
+    )
 
     response = await client.chat.completions.create(
         model=MODEL,
@@ -566,6 +399,8 @@ def _build_listening_prompt(
     topic: Optional[str],
     learner_band: Optional[float] = None,
     diagnostic: bool = False,
+    focus_micro_skill: Optional[str] = None,
+    default_difficulty: str = "band6",
 ) -> str:
     topic_line = (
         f"Topic: {topic}"
@@ -578,12 +413,25 @@ def _build_listening_prompt(
             f"\nLearner baseline (approximate band): ~{learner_band:.1f}. "
             "Match transcript speed/density and question difficulty to this level.\n"
         )
+    allow = allowlist_prompt_lines("listening")
+    focus_block = ""
+    if focus_micro_skill and is_valid_skill_id(focus_micro_skill, "listening"):
+        focus_block = (
+            f"\nPrioritise at least TWO questions that test: {focus_micro_skill} "
+            f"({get_skill_label(focus_micro_skill)}).\n"
+        )
+    skill_rules = f"""
+Each question MUST include "skill_id" (EXACTLY from the list below) and "difficulty" (band4–band8, use ~{default_difficulty}).
+
+Allowed skill_id values:
+{allow}
+"""
 
     if diagnostic:
         return f"""\
 Create a SHORT baseline diagnostic IELTS Listening mini-test (script only — audio may be synthesised separately).
 
-{topic_line}{level_line}
+{topic_line}{level_line}{focus_block}{skill_rules}
 
 The "transcript" field must be 90–130 words, natural speech, with lines like "A: ..." / "B: ..." or a single speaker.
 Include exactly **5** items in "questions" (ids q1–q5). Mix: at least one fill_in_blanks, at least one mc_single,
@@ -595,14 +443,25 @@ Return a JSON object with exactly these fields:
   "transcript": "<full script to be read aloud>",
   "topic": "<2-4 word topic name>",
   "questions": [
-    // exactly 5 question objects, ids q1 through q5, same shape as standard listening (fill_in_blanks, mc_single, mc_multiple)
+    {{
+      "id": "q1",
+      "type": "fill_in_blanks",
+      "skill_id": "<exact id from list>",
+      "difficulty": "{default_difficulty}",
+      "passage_with_blanks": "<...>",
+      "word_bank": [],
+      "question": null,
+      "options": null,
+      "correct_answers": [],
+      "explanation": "<brief>"
+    }}
   ]
 }}"""
 
     return f"""\
 Create an IELTS Listening practice session (script only — audio may be synthesised separately).
 
-{topic_line}{level_line}
+{topic_line}{level_line}{focus_block}{skill_rules}
 
 The "transcript" field must be 180-260 words, natural speech, with lines like "A: ..." and "B: ..." for dialogues
 or a single speaker for monologues. Questions test what was heard (not prior knowledge).
@@ -616,6 +475,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q1",
       "type": "fill_in_blanks",
+      "skill_id": "<exact id from list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": "<summary of what was heard with 3 words replaced by [BLANK_1], [BLANK_2], [BLANK_3]>",
       "word_bank": ["<7-8 words: 3 correct + distractors, shuffled>"],
       "question": null,
@@ -626,6 +487,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q2",
       "type": "mc_single",
+      "skill_id": "<exact id from list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": null,
       "word_bank": null,
       "question": "<question about specific information from the audio>",
@@ -636,6 +499,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q3",
       "type": "mc_multiple",
+      "skill_id": "<exact id from list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": null,
       "word_bank": null,
       "question": "<identify TWO correct statements based on the audio>",
@@ -651,9 +516,18 @@ async def listening_agent(
     topic: Optional[str],
     learner_band: Optional[float] = None,
     diagnostic: bool = False,
+    focus_micro_skill: Optional[str] = None,
+    default_difficulty: Optional[str] = None,
 ) -> dict:
     client = _get_client()
-    prompt = _build_listening_prompt(topic, learner_band=learner_band, diagnostic=diagnostic)
+    dd = default_difficulty or difficulty_string_from_band(learner_band)
+    prompt = _build_listening_prompt(
+        topic,
+        learner_band=learner_band,
+        diagnostic=diagnostic,
+        focus_micro_skill=focus_micro_skill,
+        default_difficulty=dd,
+    )
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[
@@ -668,7 +542,7 @@ async def listening_agent(
         raise ValueError("Empty response from listening agent")
     data = _extract_json(text)
     data["passage"] = data.get("transcript", "")
-    return data
+    return normalize_objective_session(data, "listening", default_difficulty=dd)
 
 
 # ── Speaking agent ────────────────────────────────────────────────────────────
@@ -679,7 +553,11 @@ Generate Part 2 cue-card style practice with clear timing and assessment criteri
 Return ONLY valid JSON — no markdown, no explanation outside the JSON."""
 
 
-def _build_speaking_prompt(topic: Optional[str], learner_band: Optional[float] = None) -> str:
+def _build_speaking_prompt(
+    topic: Optional[str],
+    learner_band: Optional[float] = None,
+    focus_micro_skill: Optional[str] = None,
+) -> str:
     topic_line = (
         f"Theme hint: {topic}"
         if topic
@@ -691,10 +569,16 @@ def _build_speaking_prompt(topic: Optional[str], learner_band: Optional[float] =
             f"\nLearner baseline (approximate band): ~{learner_band:.1f}. "
             "Pitch cue difficulty and vocabulary to this level.\n"
         )
+    focus_line = ""
+    if focus_micro_skill and is_valid_skill_id(focus_micro_skill, "speaking"):
+        focus_line = (
+            f"\nShape the bullet points so the student can showcase: "
+            f"{get_skill_label(focus_micro_skill)} ({focus_micro_skill}).\n"
+        )
     return f"""\
 Create an IELTS Speaking Part 2 practice task.
 
-{topic_line}{level_line}
+{topic_line}{level_line}{focus_line}
 
 Return a JSON object with exactly these fields:
 {{
@@ -715,9 +599,13 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def speaking_agent(topic: Optional[str], learner_band: Optional[float] = None) -> dict:
+async def speaking_agent(
+    topic: Optional[str],
+    learner_band: Optional[float] = None,
+    focus_micro_skill: Optional[str] = None,
+) -> dict:
     client = _get_client()
-    prompt = _build_speaking_prompt(topic, learner_band=learner_band)
+    prompt = _build_speaking_prompt(topic, learner_band=learner_band, focus_micro_skill=focus_micro_skill)
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[

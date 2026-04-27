@@ -23,7 +23,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Checkbox from "@mui/material/Checkbox";
 import FormGroup from "@mui/material/FormGroup";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
-import { fetchProgress, fetchResultDetail } from "services/api";
+import { fetchProgress, fetchResultDetail, fetchWeeklyReport } from "services/api";
 
 function ScoreBadge({ percentage }) {
   const color = percentage >= 70 ? "success" : percentage >= 40 ? "warning" : "error";
@@ -293,6 +293,23 @@ export default function ProgressPage() {
   const [reviewData, setReviewData] = useState(null);
   const [loadingReview, setLoadingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [weekly, setWeekly] = useState(null);
+  const [weeklyErr, setWeeklyErr] = useState("");
+
+  useEffect(() => {
+    let c = true;
+    (async () => {
+      try {
+        const w = await fetchWeeklyReport();
+        if (c) setWeekly(w);
+      } catch (e) {
+        if (c) setWeeklyErr(e.message || "");
+      }
+    })();
+    return () => {
+      c = false;
+    };
+  }, []);
 
   const loadProgress = useCallback(async () => {
     setLoadingList(true);
@@ -438,6 +455,28 @@ export default function ProgressPage() {
   return (
     <Box>
       <DashboardNavbar title="Progress" />
+
+      {weekly && (
+        <Card sx={{ borderRadius: "16px", mb: 2 }}>
+          <CardContent sx={{ p: 2.5 }}>
+            <Typography variant="subtitle1" fontWeight={700} gutterBottom>Last 7 days (micro-skill items)</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {weekly.total_items} scored items across {weekly.skills_touched} skills (tagged).
+            </Typography>
+            {weekly.biggest_improvement?.length > 0 && (
+              <Typography variant="body2" sx={{ color: "success.main" }}>
+                Notable shift: {weekly.biggest_improvement.join(" · ")}
+              </Typography>
+            )}
+            {weekly.still_weak?.length > 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Still below 50%: {weekly.still_weak.join(" · ")}
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      {weeklyErr && <Alert severity="warning" sx={{ mb: 2 }}>{weeklyErr}</Alert>}
 
       <Card sx={{ borderRadius: "16px" }}>
         <CardContent sx={{ p: 3 }}>

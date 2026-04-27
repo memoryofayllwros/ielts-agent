@@ -1,481 +1,433 @@
-下面是对你提供的材料做的**结构化系统级总结（architecture + functional specification）**，我做了三层抽象：
+# Education Agent
 
-1. **产品目标与学习闭环**
-2. **系统架构（logical + service decomposition）**
-3. **核心功能模块说明（按AI教育系统分层）**
+**Education Agent** is an AI-powered IELTS preparation system. It targets learners who want to move from roughly **Band 6 → Band 7** (or 6.5 → 7) within **3–6 months**, by closing the loop between practice, diagnosis, and targeted training.
 
-尽量去掉“README叙述风格”，提升为**可用于系统设计文档 / 技术方案说明**的版本。
+```text
+Practice → Diagnosis → Targeted Training → Score Improvement
+```
+
+**Positioning:** not a flat question bank, but an **AI IELTS personal coach**—unlimited generation, AI scoring, skill-level diagnostics, adaptive drills, and visible progress.
 
 ---
 
-# 1. System Overview（系统目标）
+## Document map
 
-该系统是一个 **AI 驱动的 IELTS 自适应学习平台（Adaptive IELTS Trainer）**，核心目标是：
+| Section | What it covers |
+| -------- | -------------- |
+| [1. Product goals & users](#1-product-goals--users) | Vision, audience, differentiation |
+| [2. Core features](#2-core-features) | Diagnostic, practice, evaluation, analytics UI, adaptive learning |
+| [3. AI capabilities](#3-ai-capabilities) | Agents, evaluation modes, speech pipeline |
+| [4. Data & analytics](#4-data--analytics) | Skill graph, schema, adaptive algorithm, reporting |
+| [5. System architecture](#5-system-architecture) | Services, data layer, scaling, observability |
+| [6. Future extensions](#6-future-extensions) | Roadmap ideas |
 
-> 将用户从当前 IELTS 水平，通过诊断 + 动态训练 + AI评估，持续推进到更高 band（如 Band 6 → 7）。
+**End-to-end learning loop (reference):**
 
-### 核心学习闭环
-
-系统的本质是一个 closed-loop learning system：
-
-```
-Diagnostic Assessment
-        ↓
-Skill-specific Practice Generation
-        ↓
-User Response Collection
-        ↓
-AI-based Evaluation (rubric / objective)
-        ↓
-Weakness Detection
-        ↓
-Adaptive Next Exercise Generation
-        ↓
-Progress Tracking & Analytics
+```text
+Diagnostic → Practice Generation → Answer Evaluation → Skill Diagnostics
+    → Targeted Practice Recommendation → Progress Tracking → (repeat)
 ```
 
 ---
 
-# 2. High-Level Architecture（系统架构）
+## 1. Product goals & users
 
-## 2.1 Logical Architecture
+### 1.1 Goals
 
-系统由四个核心层组成：
+- Deliver **high-quality IELTS-style tasks** across Reading, Listening, Writing, and Speaking.
+- Provide **AI scoring and feedback** for open-ended work; **objective scoring** for MCQ-style items.
+- Surface **skill-level strengths and weaknesses**, not only raw scores.
+- Support **personalized difficulty and next-step practice** from diagnostic and ongoing performance.
 
-```
-Frontend (React + Vite + MUI)
-        ↓
-API Layer (FastAPI)
-        ↓
-AI Service Layer (LLM + Speech Processing)
-        ↓
-Data Layer (MongoDB)
+```text
+IELTS Band 6 → Band 7 improvement  (also 6.5 → 7)
 ```
 
----
+**Design principle:**
 
-## 2.2 Backend Service Decomposition（服务拆分逻辑）
-
-### 1. Practice Generation Service
-
-负责生成所有 IELTS 练习内容：
-
-* Reading passages + questions
-* Listening scripts
-* Writing prompts
-* Speaking cue cards
-
-特点：
-
-* 基于 LLM（OpenRouter / Claude）
-* 按 skill + difficulty band 控制生成
-
----
-
-### 2. Evaluation Service（核心AI评分系统）
-
-负责对用户答案进行评分：
-
-#### Objective tasks（Reading / Listening）
-
-* 标准答案比对
-* 自动 scoring
-
-#### Subjective tasks（Writing / Speaking）
-
-* LLM rubric evaluation
-* IELTS band estimation
-
-评分维度：
-
+```text
+Practice alone is not enough.
+Students must see how their skills improve.
 ```
-Writing:
-- Task Response
-- Coherence & Cohesion
-- Lexical Resource
-- Grammar Accuracy
 
-Speaking:
-- Fluency
-- Lexical Resource
-- Grammar
-- Pronunciation (approx via transcript/audio signals)
+### 1.2 Target users
+
+- IELTS candidates planning an exam in **3–6 months**.
+- Typical targets: **Band 6 / 6.5 → Band 7**.
+
+**User needs:** reliable practice, AI feedback, a clear path, and **visible progress** (session summaries, skill maps, weekly trends).
+
+### 1.3 Differentiation
+
+| Typical app | Education Agent |
+| ----------- | ---------------- |
+| Item bank + static difficulty | **Generated** tasks, **band-aware** difficulty |
+| Score only | **Skill tags** + **weakness → next drill** |
+| One-off practice | **Closed loop**: diagnostic → practice → evaluate → adapt |
+
+```text
+diagnostic → practice → AI evaluation → skill analysis → targeted practice → band improvement
 ```
 
 ---
 
-### 3. Speech Processing Service
+## 2. Core features
 
-处理 speaking 输入：
+### 2.1 Diagnostic assessment
 
-* Speech-to-Text (STT via OpenRouter)
-* Text-to-Speech (TTS for listening practice)
-* Audio ingestion (record/upload/dictate)
+First-time **diagnostic** estimates current level across all four skills.
+
+| Skill | Task |
+| ----- | ---- |
+| Reading | Passage + questions |
+| Listening | Short audio + questions |
+| Writing | Short essay |
+| Speaking | Cue card response |
+
+**Outputs:** estimated band (overall/skill), **skill breakdown**, **initial weaknesses**—used to set difficulty and seed the learning path.
+
+### 2.2 Practice generation
+
+LLM-generated **IELTS-style** content with **structured JSON** (passages, items, keys where applicable, prompts, audio scripts for TTS, etc.).
+
+| Skill | Content |
+| ----- | -------- |
+| Reading | Academic passages + questions |
+| Listening | Script + TTS audio |
+| Writing | Task 1 / Task 2 |
+| Speaking | Cue card prompts |
+
+**Properties:** large effective item space, **difficulty ≈ Band 4–8**, **focus skills** (e.g. paraphrase) for adaptive drill-downs.
+
+### 2.3 AI evaluation
+
+- **Objective (Reading, Listening):** server-side **answer matching** and **accuracy**; optional per-question **skill** attribution.
+- **Open-ended (Writing, Speaking):** rubric aligned with IELTS-style criteria (e.g. Task Response, Coherence & Cohesion, Lexical Resource, Grammar) → **band estimate**, **criterion scores**, **feedback**, **improvement suggestions**.
+
+### 2.4 Skill-based analytics & reporting
+
+Micro-skills (example for **Reading**):
+
+| Skill | Role |
+| ----- | ---- |
+| Skimming | Main idea |
+| Scanning | Locating information |
+| Paraphrase recognition | Paraphrase / synonym traps |
+| Inference | Implied meaning |
+| Detail matching | Specific facts |
+
+Each question can carry metadata, for example:
+
+```json
+{
+  "question_id": 12,
+  "skill": "paraphrase",
+  "difficulty": "band6"
+}
+```
+
+**Per-skill signal:** `skill_accuracy = correct / total` (rolling or per window).
+
+**Session learning summary (example):**
+
+```text
+Skills strengthened today:  Scanning, Detail matching
+Skills needing improvement: Paraphrase recognition, Inference
+```
+
+**Weekly report (example):**
+
+```text
+Total questions practiced: 120
+Improvement: Scanning accuracy 65% → 82%
+Needs improvement: Paraphrase recognition 45%
+```
+
+### 2.5 Adaptive practice engine
+
+```text
+Practice → Evaluation → Weakness detection → Targeted practice generation
+```
+
+Example:
+
+```text
+Weakness: Paraphrase recognition
+Next: Reading set focused on paraphrased sentences (same band)
+```
+
+### 2.6 Learning journey visualization
+
+Example **Reading skill map** (UI):
+
+```text
+Scanning              ████████ 80%
+Skimming              ██████ 60%
+Paraphrase detection  ████ 40%
+Inference             █████ 50%
+Detail matching       ████████ 85%
+```
+
+Users see **current skill levels**, **gaps**, and **suggested next focus**.
+
+### 2.7 Progress tracking
+
+Persisted: sessions, answers, evaluations, band estimates, timestamps—enabling **session**, **weekly**, and **long-term** views.
+
+### 2.8 Platform stack (product view)
+
+- **Frontend:** React  
+- **Backend:** FastAPI  
+- **Primary store:** MongoDB (users, sessions, responses, evaluations, skill metrics)  
+- **Cross-cutting:** speech I/O for Speaking where used  
 
 ---
 
-### 4. Adaptive Learning / Analytics Service（隐含核心能力）
+## 3. AI capabilities
 
-基于历史数据：
+The system uses **specialized agents** (not a single monolithic LLM for everything). Below: responsibilities and **contract-shaped** I/o.
 
-* 用户 band progression
-* skill weaknesses
-* mistake patterns
+### 3.1 Task generator agent
 
-输出：
+**Role:** generate band- and skill-aware tasks (passages, listening scripts, writing/speaking prompts, structured items + keys).
 
+**Input (illustrative):**
+
+```json
+{
+  "skill": "reading",
+  "difficulty": "band6",
+  "focus_skill": "paraphrase"
+}
 ```
-next difficulty level
-targeted exercises
-weakness-based practice
+
+**Output (illustrative):**
+
+```json
+{
+  "passage": "...",
+  "questions": ["..."],
+  "answers": ["..."]
+}
 ```
+
+### 3.2 Evaluation agent
+
+- **Objective:** match + accuracy (and per-item correctness for analytics).
+- **Open:** rubric-based **band estimate**, **criterion scores**, **narrative feedback**.
+
+**Output (illustrative):**
+
+```json
+{
+  "band_estimate": 6.5,
+  "criteria_scores": {},
+  "feedback": "..."
+}
+```
+
+### 3.3 Skill diagnosis agent
+
+**Input:** `responses` + `question_metadata` (skill tags, difficulty).
+
+**Output (illustrative):**
+
+```json
+{
+  "skill_scores": {
+    "scanning": 0.8,
+    "paraphrase": 0.4,
+    "inference": 0.6
+  }
+}
+```
+
+### 3.4 Adaptive planner agent
+
+**Input:** current `skill_scores`, `target_band`, constraints (time, skill).
+
+**Output (illustrative):**
+
+```json
+{
+  "recommended_focus": "paraphrase",
+  "next_practice_difficulty": "band6"
+}
+```
+
+### 3.5 Speech processing (Speaking)
+
+```text
+Audio → Speech-to-Text → Transcript → LLM evaluation → Band estimate + feedback
+```
+
+**Future (optional):** rate of speech, pauses, pronunciation features.
+
+**Engineering note:** keep **LLM / agent work** out of raw HTTP request paths where possible (queues for long jobs); see [§5.3](#53-scaling--async-work).
 
 ---
 
-### 5. Authentication & Session Service
+## 4. Data & analytics
 
-* JWT authentication
-* session tracking
-* user isolation
+### 4.1 Skill graph
+
+Reading (illustrative hierarchy):
+
+```text
+Reading
+ ├── Skimming
+ ├── Scanning
+ ├── Paraphrase recognition
+ ├── Inference
+ └── Detail matching
+```
+
+**Uses:** diagnosis, **recommendation**, and **UI skill maps**; other skills (Listening, etc.) can follow the same pattern with their own taxonomies.
+
+### 4.2 Data model (MongoDB-oriented)
+
+**Users**
+
+```json
+{
+  "_id": "user_id",
+  "email": "...",
+  "target_band": 7,
+  "diagnostic_band": 6
+}
+```
+
+**Practice sessions**
+
+```json
+{
+  "_id": "session_id",
+  "user_id": "...",
+  "skill": "reading",
+  "difficulty": "band6",
+  "questions": [],
+  "answers": []
+}
+```
+
+**Responses**
+
+```json
+{
+  "session_id": "...",
+  "question_id": "...",
+  "user_answer": "...",
+  "correct": true
+}
+```
+
+**Evaluations** (open-ended / session-level scoring artifacts)
+
+```json
+{
+  "session_id": "...",
+  "band_estimate": 6.5,
+  "feedback": "...",
+  "criteria_scores": {}
+}
+```
+
+**Skill metrics** (denormalized / aggregated for fast reads)
+
+```json
+{
+  "user_id": "...",
+  "skill": "paraphrase",
+  "accuracy": 0.42,
+  "last_updated": "..."
+}
+```
+
+**Skill graph** can be config (versioned JSON/YAML) + DB references, not only embedded in the API code.
+
+### 4.3 Adaptive learning (minimal algorithm)
+
+1. **Collect** per-skill accuracy (or rolling rates).
+2. **Detect** weak skills (e.g. `argmin` over skills below a target threshold; production systems add floors, recency, and exposure).
+3. **Request** targeted generation: `focus_skill` + `difficulty` (and skill module).
+
+Example weak skill: **paraphrase** → next practice with `focus_skill: "paraphrase"`, `difficulty: "band6"`.
+
+### 4.4 Analytics pipeline
+
+- **Per session:** score, skill highlights, “what to do next” (feeds UI and planner).
+- **Scheduled / batch:** weekly aggregates, trends, and optional exports.
 
 ---
 
-### 6. Data Persistence Layer (MongoDB)
+## 5. System architecture
 
-核心 collections：
+### 5.1 High-level view
 
+```text
+Frontend (React)
+        │
+        ▼
+API Gateway (FastAPI)
+        │
+        ├── Auth
+        ├── Practice
+        ├── Evaluation
+        ├── Learning analytics
+        └── Speech
+                │
+                ▼
+        AI agent layer
+                │
+                ├── Task generator
+                ├── Evaluation
+                ├── Skill diagnosis
+                └── Adaptive planner
+                │
+                ▼
+        Data layer
+                │
+                ├── MongoDB (sessions, results, users)
+                ├── Skill graph (config / store)
+                └── Analytics store (aggregates, rollups)
 ```
-users
-practice_sessions
-results / evaluations
-diagnostic_scores
+
+**Principles:** **separate** orchestration/API from **LLM work** where appropriate; **skill-first** analytics; **adaptive** loop backed by real metrics.
+
+**Final reference loop (same as the document map):**
+
+```text
+Diagnostic Test → Practice Generation → User Answers → AI Evaluation
+      → Skill Diagnostics → Adaptive Practice → Progress Analytics
 ```
 
-数据特征：
+### 5.2 Service split (as you grow)
 
-* session-based tracking
-* skill-tagged records (reading/listening/writing/speaking)
-* full history for longitudinal analytics
+```text
+API Gateway
+  ├── Practice service
+  ├── Evaluation service
+  ├── Speech service
+  └── Analytics service
+```
+
+### 5.3 Scaling & async work
+
+- Heavy AI calls: **async task queue** (e.g. Celery + Redis, or managed queues).
+- **Observability** (production): **LLM** token use and latency; **API** latency and errors; **queue** depth / backlog.
 
 ---
 
-# 3. Diagnostic System（基线能力建模）
+## 6. Future extensions
 
-系统首次使用时执行：
-
-## 4-skill diagnostic test
-
-| Skill     | Task Type               |
-| --------- | ----------------------- |
-| Reading   | passage + MCQ           |
-| Listening | short audio + questions |
-| Writing   | Task 2 essay            |
-| Speaking  | cue card response       |
-
-输出：
-
-```
-baseline_band_score
-per-skill proficiency profile
-```
-
-作用：
-
-* 初始化 difficulty level
-* 作为 adaptive engine input
+| Area | Ideas |
+| ---- | ----- |
+| **Speaking analysis** | Speech rate, pauses, pronunciation-style signals |
+| **Deeper learning analytics** | Vocabulary tracking, grammar error patterns, writing trends over time |
+| **Full mock exam** | Timed L/R/W/S in one run → estimated overall band |
 
 ---
 
-# 4. Core Functional Modules（功能模块分解）
+## Summary
 
----
-
-## 4.1 Reading Module
-
-### 功能：
-
-* AI生成 academic passages
-* MCQ + gap-fill questions
-* server-side answer validation
-
-### 特点：
-
-* deterministic scoring (non-LLM)
-* hidden answer key stored server-side
-* session-based tracking
-
----
-
-## 4.2 Listening Module
-
-### 功能：
-
-* LLM-generated scripts
-* TTS audio generation
-* objective questions
-
-### Speech pipeline:
-
-```
-Text script → TTS → Audio playback
-```
-
-可扩展：
-
-* accents
-* noise augmentation
-* multi-speaker simulation
-
----
-
-## 4.3 Writing Module
-
-### 功能：
-
-* Task 1 (report)
-* Task 2 (essay)
-
-### Evaluation:
-
-LLM-based rubric scoring:
-
-```
-input: essay text
-output:
-  band score
-  structured feedback
-  improvement suggestions
-```
-
----
-
-## 4.4 Speaking Module
-
-### Input modes:
-
-* audio recording
-* upload
-* transcript input
-* typed answer
-
-### Pipeline:
-
-```
-Audio → STT → Transcript → LLM evaluation → band score
-```
-
-### Scoring:
-
-* fluency
-* vocabulary
-* grammar
-* pronunciation (approx via proxy signals)
-
----
-
-## 4.5 Progress Tracking Module
-
-Stores longitudinal learning data:
-
-Each attempt contains:
-
-```
-user response
-score / band
-feedback
-timestamp
-skill type
-```
-
-Supports:
-
-* history review
-* skill-based filtering
-* performance trends
-
----
-
-# 5. AI Architecture (核心智能设计)
-
-## 5.1 Agent-based conceptual model（建议架构）
-
-系统可以抽象为 4 类 AI agents：
-
-```
-Task Generation Agent
-Evaluation Agent
-Feedback Agent
-Difficulty Adaptation Agent
-```
-
-形成 pipeline：
-
-```
-generate → practice → evaluate → diagnose → adapt
-```
-
----
-
-## 5.2 Evaluation Reliability Strategy
-
-当前问题：LLM评分不稳定
-
-增强方案：
-
-### Multi-judge system
-
-```
-LLM Judge A
-LLM Judge B
-LLM Judge C
-        ↓
-Aggregation (median/weighted)
-```
-
-Writing and speaking evaluation in the API uses **three parallel judges** by default: each judge gets a slightly different calibration instruction, **per-category scores** and the **rubric band label** are aggregated with the **median**, and **feedback text** (overall, strengths, improvements, excerpt) comes from the judge whose **total score** is closest to that median (so narratives stay coherent). Set environment variable `EVAL_JUDGE_COUNT=1` to fall back to a single judge (lower latency and cost).
-
----
-
-## 5.3 Adaptive Learning Engine
-
-核心逻辑：
-
-```
-user_band
-    ↓
-skill weakness profile
-    ↓
-next exercise difficulty
-```
-
-输出：
-
-* targeted practice
-* adaptive difficulty adjustment
-* skill-specific reinforcement
-
----
-
-## 5.4 Feedback Transformation Layer
-
-将抽象评分转化为 actionable guidance：
-
-### Bad:
-
-```
-Improve grammar
-```
-
-### Good:
-
-```
-You overuse "very".
-Replace with:
-- significantly
-- considerably
-```
-
----
-
-# 6. System Workflow Summary（端到端流程）
-
-## 6.1 Practice Flow
-
-```
-User request
-   ↓
-Generate practice (LLM)
-   ↓
-Store session (MongoDB)
-   ↓
-User attempts
-   ↓
-Submit answers
-   ↓
-Evaluation engine
-   ↓
-Store results
-   ↓
-Return feedback
-```
-
----
-
-## 6.2 Writing/Speaking Flow
-
-```
-User input (text/audio)
-        ↓
-STT (if audio)
-        ↓
-LLM rubric evaluation
-        ↓
-band score + feedback
-        ↓
-progress update
-```
-
----
-
-## 6.3 Adaptive Loop
-
-```
-performance history
-        ↓
-weakness detection
-        ↓
-next task difficulty adjustment
-        ↓
-new practice generation
-```
-
----
-
-# 7. Key Design Principles
-
-### 1. Server-side truth control
-
-* answers hidden from client
-* prevents cheating
-* enables consistent scoring
-
----
-
-### 2. Session-based learning model
-
-* each practice = structured session
-* enables replay + analytics
-
----
-
-### 3. LLM for open-ended evaluation only
-
-* deterministic logic for MCQ
-* LLM only for subjective tasks
-
----
-
-### 4. Longitudinal learning tracking
-
-* not single-task scoring
-* but progress over time
-
----
-
-# 8. System Positioning（产品本质）
-
-从系统设计角度，这不是：
-
-> IELTS practice tool
-
-而是：
-
-> AI-driven adaptive language learning system
-
-更接近：
-
-* Duolingo adaptive engine
-* ELSA Speak (speech feedback)
-* IELTS Coach simulator
-
----
+Education Agent is an **adaptive, skill-aware IELTS training system**: generated practice, multi-agent AI for tasks and feedback, a **skill graph** and **metrics** for honest diagnostics, and a **closed loop** from weakness detection to the next best exercise—so learners see **how** and **where** they improve, not only a score.

@@ -42,6 +42,9 @@ class GenerateRequest(BaseModel):
     skill: SkillLiteral = "reading"
     topic: Optional[str] = None
     writing_task_type: Optional[WritingTaskLiteral] = "write_essay"
+    use_adaptive: bool = False
+    focus_skill: Optional[str] = None
+    target_band: Optional[float] = None
 
 
 class DiagnosticGenerateRequest(BaseModel):
@@ -59,6 +62,8 @@ class Question(BaseModel):
     options: Optional[List[str]] = None
     correct_answers: List[str]
     explanation: str
+    skill_id: Optional[str] = None
+    difficulty: Optional[str] = None  # e.g. "band6"
 
 
 class PracticeSession(BaseModel):
@@ -101,6 +106,8 @@ class QuestionResult(BaseModel):
     passage_with_blanks: Optional[str] = None
     word_bank: Optional[List[str]] = None
     options: Optional[List[str]] = None
+    skill_id: Optional[str] = None
+    difficulty: Optional[str] = None
 
 
 class SubmitResponse(BaseModel):
@@ -109,7 +116,59 @@ class SubmitResponse(BaseModel):
     total_score: float
     max_score: float
     percentage: float
+    estimated_band: float
     question_results: List[QuestionResult]
+    strengthened_skills: List[str] = Field(default_factory=list)
+    needs_work_skills: List[str] = Field(default_factory=list)
+
+
+class JourneyPoint(BaseModel):
+    label: str
+    accuracy: float
+
+
+class ModuleOverviewEntry(BaseModel):
+    module: str
+    score: float
+
+
+class SkillMapEntry(BaseModel):
+    skill_id: str
+    label: str
+    correct: int
+    total: int
+    accuracy: float
+    attempts: int = 0
+    trend: float = 0.0
+    status: str = "unknown"
+    journey: List[JourneyPoint] = Field(default_factory=list)
+
+
+class SkillMapResponse(BaseModel):
+    module: str
+    overview: List[ModuleOverviewEntry] = Field(default_factory=list)
+    skills: List[SkillMapEntry]
+
+
+class NextStepResponse(BaseModel):
+    focus_skill: Optional[str] = None
+    focus_label: Optional[str] = None
+    focus_skill_label: Optional[str] = None
+    focus_description: str = ""
+    focus_practice_bullets: List[str] = Field(default_factory=list)
+    module: Optional[str] = None
+    message: str = ""
+    reason: str = ""
+    difficulty: str = ""
+    suggested_practice: str = ""
+
+
+class WeeklyReportResponse(BaseModel):
+    period_days: int = 7
+    total_items: int = 0
+    skills_touched: int = 0
+    biggest_improvement: List[str] = Field(default_factory=list)
+    still_weak: List[str] = Field(default_factory=list)
 
 
 # ── Vocabulary test ───────────────────────────────────────────────────────────

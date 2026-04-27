@@ -5,6 +5,8 @@ from typing import Any, List, Optional
 
 from openai import AsyncOpenAI
 
+from skills_taxonomy import allowlist_prompt_lines, get_skill_label, is_valid_skill_id, validate_or_default
+
 _client: Optional[AsyncOpenAI] = None
 
 MODEL = "anthropic/claude-3-haiku"
@@ -26,7 +28,13 @@ Always return valid JSON exactly matching the schema described in the user messa
 Return ONLY the raw JSON object — no markdown fences, no explanation."""
 
 
-def build_prompt(topic: Optional[str], learner_band: Optional[float] = None) -> str:
+def build_prompt(
+    topic: Optional[str],
+    learner_band: Optional[float] = None,
+    *,
+    focus_micro_skill: Optional[str] = None,
+    default_difficulty: str = "band6",
+) -> str:
     topic_line = (
         f"Topic: {topic}"
         if topic
@@ -38,9 +46,27 @@ def build_prompt(topic: Optional[str], learner_band: Optional[float] = None) -> 
             f"\nLearner baseline (approximate overall band from diagnostic): ~{learner_band:.1f}. "
             "Pitch passage difficulty and question complexity to this level.\n"
         )
+    allow = allowlist_prompt_lines("reading")
+    focus_block = ""
+    if focus_micro_skill and is_valid_skill_id(focus_micro_skill, "reading"):
+        focus_block = (
+            f"\nPrioritise at least TWO questions that primarily test this micro-skill: "
+            f"{focus_micro_skill} ({get_skill_label(focus_micro_skill)}).\n"
+        )
+    elif focus_micro_skill:
+        focus_block = (
+            f"\nPrioritise at least TWO questions aligned with this focus: {focus_micro_skill}.\n"
+        )
     return f"""Create an IELTS Academic Reading practice session.
 
-{topic_line}{level_line}
+{topic_line}{level_line}{focus_block}
+
+MICRO-SKILLS (Reading) — each question MUST include "skill_id" and "difficulty":
+- "skill_id" MUST be copied EXACTLY from the list below (no new names, no paraphrasing).
+- "difficulty" MUST be one of: band4, band5, band6, band7, band8. Use approximately {default_difficulty} for this learner unless a question is intentionally easier or harder.
+
+Allowed skill_id values:
+{allow}
 
 Return a JSON object with exactly these fields:
 
@@ -51,6 +77,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q1",
       "type": "fill_in_blanks",
+      "skill_id": "<EXACTLY one id from the allowed list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": "<passage text with 3 words replaced by [BLANK_1], [BLANK_2], [BLANK_3]>",
       "word_bank": ["<7-8 words: 3 correct + 4-5 distractors, shuffled>"],
       "question": null,
@@ -61,6 +89,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q2",
       "type": "mc_single",
+      "skill_id": "<EXACTLY one id from the allowed list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": null,
       "word_bank": null,
       "question": "<comprehension question>",
@@ -71,6 +101,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q3",
       "type": "mc_multiple",
+      "skill_id": "<EXACTLY one id from the allowed list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": null,
       "word_bank": null,
       "question": "<question asking to identify TWO correct statements>",
@@ -237,8 +269,13 @@ def _normalize_question_type(raw: Optional[str], q: dict) -> str:
     return "mc_single"
 
 
-def normalize_reading_session(data: dict) -> dict:
-    """Make LLM output safe for storage, scoring, and the React practice UI."""
+def normalize_objective_session(
+    data: dict,
+    module: str,
+    *,
+    default_difficulty: str = "band6",
+) -> dict:
+    """Make LLM output safe for storage, scoring, and the React practice UI (Reading or Listening)."""
     out = dict(data)
     raw_qs = out.get("questions")
     if isinstance(raw_qs, dict):
@@ -270,10 +307,18 @@ def normalize_reading_session(data: dict) -> dict:
         else:
             expl = str(expl)
 
+        diff_raw = q.get("difficulty")
+        if isinstance(diff_raw, str) and diff_raw.strip().startswith("band"):
+            diff = diff_raw.strip().lower()
+        else:
+            diff = default_difficulty
+
         cleaned.append(
             {
                 "id": str(qid),
                 "type": qtype,
+                "skill_id": validate_or_default(q.get("skill_id"), module),
+                "difficulty": diff,
                 "passage_with_blanks": passage_with_blanks,
                 "word_bank": word_bank or None,
                 "question": q.get("question"),
@@ -284,7 +329,7 @@ def normalize_reading_session(data: dict) -> dict:
         )
 
     if not cleaned:
-        raise ValueError("Reading session has no valid questions")
+        raise ValueError("Session has no valid questions")
 
     out["questions"] = cleaned
     if not out.get("topic"):
@@ -294,12 +339,24 @@ def normalize_reading_session(data: dict) -> dict:
     return out
 
 
+def normalize_reading_session(data: dict, *, default_difficulty: str = "band6") -> dict:
+    return normalize_objective_session(data, "reading", default_difficulty=default_difficulty)
+
+
 async def generate_practice_session(
     topic: Optional[str] = None,
     learner_band: Optional[float] = None,
+    *,
+    focus_micro_skill: Optional[str] = None,
+    default_difficulty: str = "band6",
 ) -> dict:
     """Generate an IELTS Academic reading practice session via Claude on OpenRouter."""
-    prompt = build_prompt(topic, learner_band=learner_band)
+    prompt = build_prompt(
+        topic,
+        learner_band=learner_band,
+        focus_micro_skill=focus_micro_skill,
+        default_difficulty=default_difficulty,
+    )
 
     response = await _get_client().chat.completions.create(
         model=MODEL,
@@ -315,15 +372,16 @@ async def generate_practice_session(
     if not text:
         raise ValueError("Empty response from model")
 
-    return normalize_reading_session(_extract_json(text))
+    return normalize_reading_session(_extract_json(text), default_difficulty=default_difficulty)
 
 
-def build_diagnostic_reading_prompt(topic: Optional[str]) -> str:
+def build_diagnostic_reading_prompt(topic: Optional[str], default_difficulty: str = "band6") -> str:
     topic_line = (
         f"Topic: {topic}"
         if topic
         else "Choose a compact academic topic suitable for a quick level check."
     )
+    allow = allowlist_prompt_lines("reading")
     return f"""Create a SHORT baseline diagnostic IELTS Academic Reading mini-test.
 
 {topic_line}
@@ -332,6 +390,10 @@ Requirements:
 - "passage": 90–120 words only, academic tone.
 - Exactly **5** items in "questions" (ids q1–q5). Mix: at least one fill_in_blanks, at least one mc_single, at least one mc_multiple (two correct letters). Remaining types are your choice among those three.
 - For fill_in_blanks use [BLANK_1], [BLANK_2], … placeholders and a shuffled word_bank with correct words plus distractors.
+- Each question MUST include "skill_id" (EXACTLY from the list below) and "difficulty" (e.g. {default_difficulty}).
+
+Allowed skill_id values:
+{allow}
 
 Return a JSON object with exactly these fields:
 
@@ -342,6 +404,8 @@ Return a JSON object with exactly these fields:
     {{
       "id": "q1",
       "type": "fill_in_blanks",
+      "skill_id": "<exact id from list>",
+      "difficulty": "{default_difficulty}",
       "passage_with_blanks": "<text with [BLANK_n] placeholders>",
       "word_bank": ["<words shuffled>"],
       "question": null,
@@ -354,8 +418,8 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
-async def generate_diagnostic_reading_session(topic: Optional[str] = None) -> dict:
-    prompt = build_diagnostic_reading_prompt(topic)
+async def generate_diagnostic_reading_session(topic: Optional[str] = None, default_difficulty: str = "band6") -> dict:
+    prompt = build_diagnostic_reading_prompt(topic, default_difficulty=default_difficulty)
     response = await _get_client().chat.completions.create(
         model=MODEL,
         messages=[
@@ -368,4 +432,4 @@ async def generate_diagnostic_reading_session(topic: Optional[str] = None) -> di
     text = response.choices[0].message.content
     if not text:
         raise ValueError("Empty response from model")
-    return normalize_reading_session(_extract_json(text))
+    return normalize_reading_session(_extract_json(text), default_difficulty=default_difficulty)

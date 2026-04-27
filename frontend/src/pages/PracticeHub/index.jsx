@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Grid from "@mui/material/Grid";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
+import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 
 const SKILLS = [
   { key: "reading", title: "Reading", desc: "Academic passage, gap-fill and multiple choice.", route: "/practice/reading", emoji: "📄" },
@@ -16,13 +17,17 @@ const SKILLS = [
 
 export default function PracticeHub() {
   const navigate = useNavigate();
+
   return (
     <Box>
       <DashboardNavbar title="Practice" />
       <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>Choose a skill</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Full IELTS practice: reading, listening, writing, and speaking in one place.
+        Skill diagnosis, not only questions: see which micro-skills move after each session. Open the skill map anytime.
       </Typography>
+      <Box sx={{ mb: 3 }}>
+        <NextBestPracticeCard module="reading" />
+      </Box>
       <Card sx={{ borderRadius: "16px", mb: 3, background: "linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%)" }}>
         <CardContent sx={{ p: 2.5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
           <Box sx={{ flex: 1, minWidth: 200 }}>
