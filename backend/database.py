@@ -80,6 +80,35 @@ async def get_user_by_id(user_id: str) -> Optional[dict]:
     return await _db_handle().users.find_one({"_id": user_id})
 
 
+PROFILE_KEYS = frozenset(
+    {
+        "display_name",
+        "target_band",
+        "target_reading",
+        "target_listening",
+        "target_writing",
+        "target_speaking",
+        "past_exam_band",
+        "past_reading",
+        "past_listening",
+        "past_writing",
+        "past_speaking",
+        "past_exam_notes",
+    }
+)
+
+
+async def set_user_profile_fields(user_id: str, data: dict[str, Any]) -> None:
+    """Merge allowed keys into user.profile. Use None in data to clear optional fields (stored as null)."""
+    now = datetime.now(timezone.utc).isoformat()
+    set_doc: dict[str, Any] = {"profile.updated_at": now}
+    for k, v in data.items():
+        if k not in PROFILE_KEYS:
+            continue
+        set_doc[f"profile.{k}"] = v
+    await _db_handle().users.update_one({"_id": user_id}, {"$set": set_doc})
+
+
 # ── Diagnostic baseline ───────────────────────────────────────────────────────
 
 DIAGNOSTIC_SKILLS = frozenset({"reading", "listening", "writing", "speaking"})

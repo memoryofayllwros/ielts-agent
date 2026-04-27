@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -28,6 +28,18 @@ import TrendingDown from "@mui/icons-material/TrendingDown";
 import HelpOutline from "@mui/icons-material/HelpOutline";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
 import { fetchSkillMap, fetchNextStep } from "services/api";
+import {
+  accuracyToIeltsBand,
+  accuracyDeltaToBandDelta,
+  formatMicroSkillBand,
+} from "utils/ieltsMicroBand";
+import { dashboardPage } from "utils/pageLayout";
+
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.min(1, Math.max(0, x));
+}
 
 const MODULE_TAB = [
   { value: "reading", label: "Reading", Icon: MenuBook, blurb: "Passages & questions" },
@@ -35,6 +47,16 @@ const MODULE_TAB = [
   { value: "writing", label: "Writing", Icon: EditNote, blurb: "Tasks & structure" },
   { value: "speaking", label: "Speaking", Icon: Mic, blurb: "Fluency & ideas" },
 ];
+
+/** HashRouter keeps ?module= in the hash, not in window.location.search */
+function readModuleFromHash() {
+  if (typeof window === "undefined") return null;
+  const h = window.location.hash.replace(/^#/, "");
+  const qi = h.indexOf("?");
+  const q = qi >= 0 ? h.slice(qi + 1) : "";
+  const m = new URLSearchParams(q).get("module");
+  return m && MODULE_TAB.some((t) => t.value === m) ? m : null;
+}
 
 function moduleLabel(value) {
   return MODULE_TAB.find((m) => m.value === value)?.label || value;
@@ -89,6 +111,8 @@ function skillGroupId(status) {
   return "priority";
 }
 
+const EMPTY_SKILLS = [];
+
 const SKILL_GROUPS = [
   {
     id: "priority",
@@ -128,12 +152,13 @@ function TrendRow({ trend, isUnknown }) {
     );
   }
   const t = Number(trend) || 0;
+  const bd = accuracyDeltaToBandDelta(t);
   if (t > 0.02) {
     return (
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
         <TrendingUp sx={{ fontSize: 16, color: "success.main" }} />
         <Typography variant="caption" color="success.main" fontWeight={600}>
-          Improving · +{(t * 100).toFixed(0)} pts vs last week
+          Improving · +{Math.abs(bd).toFixed(1)} band vs last week
         </Typography>
       </Box>
     );
@@ -143,7 +168,7 @@ function TrendRow({ trend, isUnknown }) {
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
         <TrendingDown sx={{ fontSize: 16, color: "error.main" }} />
         <Typography variant="caption" color="error.main" fontWeight={600}>
-          Slipping · {(t * 100).toFixed(0)} pts vs last week
+          Slipping · −{Math.abs(bd).toFixed(1)} band vs last week
         </Typography>
       </Box>
     );
@@ -171,7 +196,7 @@ function statusNarrative(status, label) {
   return `${label} is a priority gap. Short, frequent sets work better than rare long sessions.`;
 }
 
-function LegendBar() {
+const LegendBar = memo(function LegendBar() {
   const items = [
     { label: "Strong", color: "success.main" },
     { label: "Developing", color: "warning.main" },
@@ -184,8 +209,9 @@ function LegendBar() {
         display: "flex",
         flexWrap: "wrap",
         alignItems: "center",
-        gap: { xs: 1, sm: 2 },
-        py: 1.5,
+        rowGap: { xs: 1.25, sm: 1 },
+        columnGap: { xs: 1.5, sm: 2 },
+        py: { xs: 1.75, sm: 1.5 },
         px: { xs: 1.5, sm: 2 },
         borderRadius: 2,
         bgcolor: "rgba(13, 148, 136, 0.06)",
@@ -197,8 +223,17 @@ function LegendBar() {
         How to read the map
       </Typography>
       {items.map((it) => (
-        <Box key={it.label} sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: it.color }} />
+        <Box
+          key={it.label}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
+            minHeight: 36,
+            pr: { xs: 0.5, sm: 0 },
+          }}
+        >
+          <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: it.color, flexShrink: 0 }} />
           <Typography variant="body2" fontWeight={600} color="text.primary">
             {it.label}
           </Typography>
@@ -206,9 +241,9 @@ function LegendBar() {
       ))}
     </Box>
   );
-}
+});
 
-function FourPaperSelector({ module, overview, onSelectModule }) {
+const FourPaperSelector = memo(function FourPaperSelector({ module, overview, onSelectModule }) {
   const byMod = useMemo(() => {
     const m = new Map();
     (overview || []).forEach((o) => m.set(o.module, o));
@@ -220,41 +255,70 @@ function FourPaperSelector({ module, overview, onSelectModule }) {
       <Typography variant="subtitle1" fontWeight={800} color="text.primary" sx={{ mb: 0.5 }}>
         1 · Your four papers
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 720 }}>
-        Tap a paper to open its micro-skills below. Numbers are from your recent tagged practice.
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 560 }}>
+        Tap a paper to open its skills below.
       </Typography>
       <Grid container spacing={1.5}>
         {MODULE_TAB.map((m) => {
           const o = byMod.get(m.value);
-          const pct = o?.score != null ? Math.round((o.score || 0) * 100) : null;
+          const sc = o?.score != null ? clamp01(o.score) : null;
+          const band = sc != null && sc > 0 ? accuracyToIeltsBand(sc) : null;
+          const bandStr = band != null ? formatMicroSkillBand(band) : null;
+          const pct = sc != null ? Math.round(sc * 100) : null;
           const selected = module === m.value;
           const Icon = m.Icon;
           const barColor =
-            pct == null || o?.score <= 0
+            pct == null || sc <= 0
               ? "grey.300"
               : pct >= 65
                 ? "success.main"
                 : pct >= 45
                   ? "warning.main"
                   : "error.main";
+          const activate = () => onSelectModule(m.value);
           return (
-            <Grid item xs={6} md={3} key={m.value}>
+            <Grid item xs={12} sm={6} md={3} key={m.value}>
               <Paper
                 elevation={0}
-                onClick={() => onSelectModule(m.value)}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                aria-label={`${m.label}: ${m.blurb}${bandStr != null ? `, ${bandStr}` : ", no score yet"}`}
+                onClick={activate}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activate();
+                  }
+                }}
                 sx={{
-                  p: 2,
+                  p: { xs: 2, sm: 2 },
                   cursor: "pointer",
                   height: "100%",
+                  minHeight: { xs: 96, sm: 0 },
                   border: 2,
                   borderColor: selected ? "primary.main" : "transparent",
                   bgcolor: selected ? "rgba(13, 148, 136, 0.08)" : "background.paper",
                   borderRadius: 2,
-                  transition: "transform 0.15s, box-shadow 0.15s",
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "rgba(13, 148, 136, 0.12)",
+                  transition: "transform 0.15s ease-out, box-shadow 0.15s ease-out",
                   boxShadow: selected ? "0 4px 20px rgba(13, 148, 136, 0.15)" : 1,
-                  "&:hover": {
-                    transform: "translateY(-2px)",
-                    boxShadow: 3,
+                  "@media (hover: hover)": {
+                    "&:hover": {
+                      boxShadow: 3,
+                      "@media (prefers-reduced-motion: no-preference)": {
+                        transform: "translateY(-2px)",
+                      },
+                    },
+                  },
+                  "@media (prefers-reduced-motion: reduce)": {
+                    transition: "none",
+                  },
+                  "&:focus-visible": {
+                    outline: "2px solid",
+                    outlineColor: "primary.main",
+                    outlineOffset: 2,
                   },
                 }}
               >
@@ -294,8 +358,8 @@ function FourPaperSelector({ module, overview, onSelectModule }) {
                       "& .MuiLinearProgress-bar": { borderRadius: 4, bgcolor: barColor },
                     }}
                   />
-                  <Typography variant="h6" fontWeight={800} sx={{ minWidth: 44, textAlign: "right", color: "text.primary" }}>
-                    {pct != null && o?.score > 0 ? `${pct}%` : "—"}
+                  <Typography variant="h6" fontWeight={800} sx={{ minWidth: 56, textAlign: "right", color: "text.primary" }}>
+                    {bandStr != null ? bandStr : "—"}
                   </Typography>
                 </Box>
               </Paper>
@@ -305,9 +369,9 @@ function FourPaperSelector({ module, overview, onSelectModule }) {
       </Grid>
     </Box>
   );
-}
+});
 
-function ModuleQuickStats({ skills, show }) {
+const ModuleQuickStats = memo(function ModuleQuickStats({ skills, show }) {
   const counts = useMemo(() => {
     const c = { priority: 0, developing: 0, strong: 0, notMeasured: 0 };
     skills.forEach((s) => {
@@ -350,11 +414,12 @@ function ModuleQuickStats({ skills, show }) {
       ))}
     </Box>
   );
-}
+});
 
-function NextStepPanel({ module, nextStep, onPractice, loading }) {
+const NextStepPanel = memo(function NextStepPanel({ module, nextStep, onPractice, loading, loadError }) {
   const label = nextStep?.focus_skill_label || nextStep?.focus_label || "";
   const hasFocus = Boolean(nextStep?.focus_skill);
+  const textBreak = { overflowWrap: "anywhere", wordBreak: "break-word" };
 
   return (
     <Card
@@ -369,80 +434,106 @@ function NextStepPanel({ module, nextStep, onPractice, loading }) {
       }}
     >
       <CardContent sx={{ p: 2.5 }}>
-        <Typography variant="overline" fontWeight={800} color="primary" letterSpacing={1.2}>
+        <Typography variant="overline" fontWeight={800} color="primary" sx={{ letterSpacing: "0.08em" }}>
           Suggested next step
         </Typography>
-        {hasFocus ? (
-          <>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-              Focus skill
-            </Typography>
-            <Typography variant="h5" color="primary.dark" fontWeight={800} sx={{ mt: 0.25, lineHeight: 1.3 }}>
-              {label}
-            </Typography>
-            {nextStep?.focus_description ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7 }}>
-                {nextStep.focus_description}
-              </Typography>
-            ) : null}
-            {(nextStep?.focus_practice_bullets || []).length > 0 ? (
-              <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
-                {(nextStep.focus_practice_bullets || []).map((b) => (
-                  <li key={b}>
-                    <Typography variant="body2" color="text.secondary" component="span" sx={{ lineHeight: 1.7 }}>
-                      {b}
-                    </Typography>
-                  </li>
-                ))}
-              </Box>
-            ) : null}
-          </>
-        ) : (
-          <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1, color: "text.primary" }}>
-            Keep practicing to unlock a focus
-          </Typography>
-        )}
-
-        {nextStep?.reason ? (
+        {loadError ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-            {nextStep.reason}
+            Recommendations did not load. Use <strong>Retry</strong> on the alert above, then open this panel again.
           </Typography>
-        ) : nextStep?.message ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-            {nextStep.message}
-          </Typography>
-        ) : null}
-
-        {(nextStep?.difficulty || nextStep?.suggested_practice) && (
-          <Box sx={{ mt: 2 }}>
-            {nextStep.difficulty ? (
-              <Typography variant="caption" color="text.secondary" display="block">
-                Suggested difficulty: {formatDifficulty(nextStep.difficulty)}
-              </Typography>
-            ) : null}
-            {nextStep.suggested_practice ? (
-              <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 600, color: "text.primary" }}>
-                {nextStep.suggested_practice}
-              </Typography>
-            ) : null}
+        ) : loading ? (
+          <Box
+            sx={{ display: "flex", justifyContent: "center", py: 4 }}
+            aria-busy="true"
+            aria-live="polite"
+            aria-label="Loading suggested next step"
+          >
+            <CircularProgress size={36} />
           </Box>
-        )}
+        ) : (
+          <>
+            {hasFocus ? (
+              <>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  Focus skill
+                </Typography>
+                <Typography
+                  variant="h5"
+                  color="primary.dark"
+                  fontWeight={800}
+                  sx={{ mt: 0.25, lineHeight: 1.3, ...textBreak }}
+                >
+                  {label}
+                </Typography>
+                {nextStep?.focus_description ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7, ...textBreak }}>
+                    {nextStep.focus_description}
+                  </Typography>
+                ) : null}
+                {(nextStep?.focus_practice_bullets || []).length > 0 ? (
+                  <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
+                    {(nextStep.focus_practice_bullets || []).map((b, bi) => (
+                      <li key={`${bi}-${String(b).slice(0, 64)}`}>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          component="span"
+                          sx={{ lineHeight: 1.7, ...textBreak }}
+                        >
+                          {b}
+                        </Typography>
+                      </li>
+                    ))}
+                  </Box>
+                ) : null}
+              </>
+            ) : (
+              <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1, color: "text.primary", ...textBreak }}>
+                Keep practicing to unlock a focus
+              </Typography>
+            )}
 
-        <Button
-          variant="contained"
-          fullWidth
-          disabled={loading}
-          sx={{ mt: 2.5, borderRadius: "12px", fontWeight: 700, py: 1.2 }}
-          onClick={() => onPractice(hasFocus ? nextStep.focus_skill : null)}
-        >
-          {hasFocus ? "Go to practice" : `Practice ${moduleLabel(module)}`}
-        </Button>
+            {nextStep?.reason ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7, ...textBreak }}>
+                {nextStep.reason}
+              </Typography>
+            ) : nextStep?.message ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7, ...textBreak }}>
+                {nextStep.message}
+              </Typography>
+            ) : null}
+
+            {(nextStep?.difficulty || nextStep?.suggested_practice) && (
+              <Box sx={{ mt: 2 }}>
+                {nextStep.difficulty ? (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={textBreak}>
+                    Suggested difficulty: {formatDifficulty(nextStep.difficulty)}
+                  </Typography>
+                ) : null}
+                {nextStep.suggested_practice ? (
+                  <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 600, color: "text.primary", ...textBreak }}>
+                    {nextStep.suggested_practice}
+                  </Typography>
+                ) : null}
+              </Box>
+            )}
+
+            <Button
+              variant="contained"
+              fullWidth
+              sx={{ mt: 2.5, borderRadius: "12px", fontWeight: 700, py: { xs: 1.35, sm: 1.2 }, minHeight: 48 }}
+              onClick={() => onPractice(hasFocus ? nextStep.focus_skill : null)}
+            >
+              {hasFocus ? "Go to practice" : `Practice ${moduleLabel(module)}`}
+            </Button>
+          </>
+        )}
       </CardContent>
     </Card>
   );
-}
+});
 
-function SkillRowCard({
+const SkillRowCard = memo(function SkillRowCard({
   skill,
   journeyMode,
   expanded,
@@ -450,10 +541,14 @@ function SkillRowCard({
   onPracticeSkill,
 }) {
   const attempts = skill.attempts ?? skill.total ?? 0;
-  const pct = attempts > 0 ? Math.round(skill.accuracy * 100) : null;
   const status = skill.status || "unknown";
   const isUnknown = status === "unknown" || attempts < 1;
   const stripe = barColorForStatus(status);
+
+  const acc = clamp01(skill.accuracy);
+  const band = attempts > 0 ? accuracyToIeltsBand(acc) : null;
+  const bandStr = band != null ? formatMicroSkillBand(band) : null;
+  const barPct = attempts > 0 ? Math.min(100, acc * 100) : 0;
 
   return (
     <Card
@@ -462,15 +557,19 @@ function SkillRowCard({
         overflow: "visible",
         border: "1px solid",
         borderColor: "divider",
-        borderLeft: "5px solid",
-        borderLeftColor: stripe,
+        borderTop: "4px solid",
+        borderTopColor: stripe,
       }}
     >
       <CardContent sx={{ py: 2, px: 2.25 }}>
         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 0.5 }}>
-              <Typography variant="subtitle1" fontWeight={800} sx={{ color: "text.primary" }}>
+              <Typography
+                variant="subtitle1"
+                fontWeight={800}
+                sx={{ color: "text.primary", overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
                 {skill.label}
               </Typography>
               <Chip
@@ -480,10 +579,11 @@ function SkillRowCard({
                 sx={{ fontWeight: 700 }}
               />
             </Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
               {attempts > 0 ? (
                 <>
-                  <strong>{pct}%</strong> accuracy · {attempts} attempts ({skill.correct}/{skill.total} correct)
+                  <strong>{bandStr}</strong> (practice estimate) · {attempts} attempts ({skill.correct}/{skill.total}{" "}
+                  correct)
                 </>
               ) : (
                 <>No data yet — practice once to place this skill on the map.</>
@@ -492,7 +592,7 @@ function SkillRowCard({
             <TrendRow trend={skill.trend} isUnknown={isUnknown} />
             <LinearProgress
               variant="determinate"
-              value={attempts > 0 ? Math.min(100, (skill.accuracy || 0) * 100) : 0}
+              value={barPct}
               sx={{
                 mt: 1.25,
                 height: 10,
@@ -510,17 +610,19 @@ function SkillRowCard({
                 <Typography variant="caption" fontWeight={700} color="text.secondary">
                   Recent windows
                 </Typography>
-                {skill.journey.map((pt) => (
-                  <Box key={pt.label} sx={{ mt: 0.75 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25 }}>
-                      <Typography variant="caption">{pt.label}</Typography>
-                      <Typography variant="caption" fontWeight={700}>
-                        {Math.round(pt.accuracy * 100)}%
+                {skill.journey.map((pt, pi) => (
+                  <Box key={`${pi}-${pt.label}`} sx={{ mt: 0.75 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.25, gap: 1, minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ overflowWrap: "anywhere", minWidth: 0 }}>
+                        {pt.label}
+                      </Typography>
+                      <Typography variant="caption" fontWeight={700} sx={{ flexShrink: 0 }}>
+                        {formatMicroSkillBand(accuracyToIeltsBand(pt.accuracy))}
                       </Typography>
                     </Box>
                     <LinearProgress
                       variant="determinate"
-                      value={Math.min(100, pt.accuracy * 100)}
+                      value={Math.min(100, clamp01(pt.accuracy) * 100)}
                       sx={{
                         height: 4,
                         borderRadius: 2,
@@ -535,15 +637,22 @@ function SkillRowCard({
           </Box>
           <Tooltip title="Tips & detail">
             <IconButton
-              size="small"
+              size="medium"
               onClick={() => onToggleExpand(skill.skill_id)}
               aria-expanded={expanded}
+              aria-label={expanded ? "Hide skill tips and detail" : "Show skill tips and detail"}
               sx={{
+                minWidth: 44,
+                minHeight: 44,
+                mt: -0.5,
                 transform: expanded ? "rotate(180deg)" : "none",
-                transition: "transform 0.2s",
+                transition: "transform 0.2s ease-out",
+                "@media (prefers-reduced-motion: reduce)": {
+                  transition: "none",
+                },
               }}
             >
-              <ExpandMoreIcon />
+              <ExpandMoreIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         </Box>
@@ -553,7 +662,7 @@ function SkillRowCard({
           color="primary"
           size="medium"
           fullWidth
-          sx={{ mt: 1.5, borderRadius: "10px", fontWeight: 700 }}
+          sx={{ mt: 1.5, borderRadius: "10px", fontWeight: 700, py: 1.15, minHeight: 48 }}
           onClick={() => onPracticeSkill(skill.skill_id)}
         >
           Practice this skill
@@ -561,7 +670,11 @@ function SkillRowCard({
 
         <Collapse in={expanded}>
           <Divider sx={{ my: 2 }} />
-          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.75 }}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ lineHeight: 1.75, overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
             {statusNarrative(status, skill.label)}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.5 }}>
@@ -571,7 +684,7 @@ function SkillRowCard({
       </CardContent>
     </Card>
   );
-}
+});
 
 function groupSkillsByBand(skills) {
   const grouped = { priority: [], developing: [], strong: [], notMeasured: [] };
@@ -584,16 +697,12 @@ function groupSkillsByBand(skills) {
 export default function SkillMapPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [module, setModuleState] = useState(() => {
-    const m = new URLSearchParams(
-      typeof window !== "undefined" ? window.location.search : "",
-    ).get("module");
-    return m && MODULE_TAB.some((t) => t.value === m) ? m : "reading";
-  });
+  const [module, setModuleState] = useState(() => readModuleFromHash() || "reading");
   const [data, setData] = useState(null);
   const [nextStep, setNextStep] = useState(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const [journeyMode, setJourneyMode] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
 
@@ -613,6 +722,8 @@ export default function SkillMapPage() {
     let cancelled = false;
     setErr("");
     setLoading(true);
+    setData(null);
+    setNextStep(null);
     (async () => {
       try {
         const [sm, ns] = await Promise.all([fetchSkillMap(module), fetchNextStep(module)]);
@@ -622,7 +733,7 @@ export default function SkillMapPage() {
         }
       } catch (e) {
         if (!cancelled) {
-          setErr(e.message || "Failed to load");
+          setErr(e.message || "Failed to load skill map. Check your connection and try again.");
           setData(null);
           setNextStep(null);
         }
@@ -633,21 +744,40 @@ export default function SkillMapPage() {
     return () => {
       cancelled = true;
     };
-  }, [module]);
+  }, [module, reloadKey]);
 
-  const goPractice = (focusSkill) => {
-    const path = practicePath(module);
-    const q = buildPracticeSearch({ focusSkill });
-    navigate(`${path}?${q}`);
-  };
+  const goPractice = useCallback(
+    (focusSkill) => {
+      const path = practicePath(module);
+      const q = buildPracticeSearch({ focusSkill });
+      navigate(`${path}?${q}`);
+    },
+    [module, navigate],
+  );
+
+  const handleToggleExpand = useCallback((id) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handlePracticeSkill = useCallback(
+    (id) => {
+      goPractice(id);
+    },
+    [goPractice],
+  );
 
   const ready = !loading && data?.module === module;
-  const skills = ready ? data.skills || [] : [];
   const overview = data?.overview || [];
+  const skills = useMemo(() => {
+    if (!ready) return EMPTY_SKILLS;
+    const s = data?.skills;
+    if (s && s.length > 0) return s;
+    return EMPTY_SKILLS;
+  }, [ready, data]);
   const grouped = useMemo(() => groupSkillsByBand(skills), [skills]);
 
   return (
-    <Box sx={{ pb: 5, width: "100%", minWidth: 0 }}>
+    <Box sx={dashboardPage.root}>
       <DashboardNavbar title="Skill map" />
 
       <Card
@@ -660,16 +790,50 @@ export default function SkillMapPage() {
           color: "#fff",
         }}
       >
-        <CardContent sx={{ p: { xs: 2.5, md: 3.5 } }}>
-          <Typography variant="overline" sx={{ opacity: 0.95, fontWeight: 800, letterSpacing: "0.14em" }}>
+        <CardContent sx={{ p: { xs: 2.25, sm: 2.75, md: 3.5 } }}>
+          <Typography variant="overline" sx={{ opacity: 0.95, fontWeight: 800, letterSpacing: { xs: "0.1em", sm: "0.14em" } }}>
             At a glance
           </Typography>
-          <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, letterSpacing: "-0.03em" }}>
+          <Typography
+            component="h1"
+            variant="h4"
+            sx={{
+              fontWeight: 800,
+              mt: 0.5,
+              letterSpacing: "-0.03em",
+              fontSize: { xs: "1.35rem", sm: "1.5rem", md: "1.75rem" },
+              lineHeight: 1.2,
+            }}
+          >
             Your skill map
           </Typography>
-          <Typography variant="body1" sx={{ mt: 1.25, opacity: 0.95, maxWidth: 720, lineHeight: 1.65 }}>
-            Each <strong>micro-skill</strong> is a building block inside Listening, Reading, Writing, or Speaking.
-            Colors show how you are doing <strong>right now</strong> — not a single exam score.
+          <Typography
+            variant="body1"
+            sx={{
+              mt: { xs: 1, sm: 1.25 },
+              opacity: 0.95,
+              maxWidth: 560,
+              lineHeight: 1.55,
+              fontSize: { xs: "0.9375rem", sm: "1rem" },
+            }}
+          >
+            Sub-skills for each paper, grouped so you know what to improve first.
+          </Typography>
+          <Typography
+            component="p"
+            variant="caption"
+            sx={{
+              mt: { xs: 1.5, sm: 1.75 },
+              m: 0,
+              display: "block",
+              opacity: 0.72,
+              maxWidth: 480,
+              lineHeight: 1.45,
+              fontSize: { xs: "0.68rem", sm: "0.7rem" },
+              letterSpacing: "0.02em",
+            }}
+          >
+            Bands 1–9 on this map are estimated from your tagged practice here, not an official IELTS score.
           </Typography>
         </CardContent>
       </Card>
@@ -677,33 +841,48 @@ export default function SkillMapPage() {
       <LegendBar />
 
       {err ? (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2, borderRadius: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => setReloadKey((k) => k + 1)} sx={{ fontWeight: 700 }}>
+              Retry
+            </Button>
+          }
+        >
           {err}
         </Alert>
       ) : null}
 
       <FourPaperSelector module={module} overview={overview} onSelectModule={setModule} />
 
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: { xs: "column", lg: "row" },
-          alignItems: { lg: "flex-start" },
-          gap: 3,
-        }}
-      >
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={dashboardPage.splitMainAsideLg}>
+        <Box
+          sx={{
+            minWidth: 0,
+            contain: "layout style",
+            order: { xs: 2, lg: 1 },
+          }}
+        >
           <Typography variant="subtitle1" fontWeight={800} color="text.primary" sx={{ mb: 0.5 }}>
             2 · Micro-skills · {moduleLabel(module)}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 720 }}>
-            Skills are grouped so you see <strong>what to fix first</strong>. Trend compares the last 7 days to the week
-            before (when both have data).
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 560 }}>
+            <strong>Priority</strong> first. <strong>Trend</strong> = last 7 days vs. the week before (when both have data).
           </Typography>
 
           <ModuleQuickStats skills={skills} show={ready && skills.length > 0} />
 
-          <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, mb: 2 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: { xs: "flex-start", sm: "center" },
+              gap: { xs: 1, sm: 2 },
+              mb: 2,
+              rowGap: 1,
+            }}
+          >
             <FormControlLabel
               control={
                 <Switch
@@ -714,20 +893,43 @@ export default function SkillMapPage() {
                 />
               }
               label={
-                <Typography variant="body2" fontWeight={600}>
-                  Show recent score windows
+                <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.35 }}>
+                  Show recent band windows
                 </Typography>
               }
+              sx={{
+                m: 0,
+                mr: { xs: 0, sm: 1 },
+                alignItems: "flex-start",
+                maxWidth: { xs: "100%", sm: "none" },
+                "& .MuiFormControlLabel-label": { mt: "2px" },
+              }}
             />
-            <Tooltip title="Extra mini-bars when you have history across time windows">
-              <Typography variant="caption" color="text.secondary" sx={{ cursor: "help" }}>
+            <Tooltip title="Extra mini-bars (IELTS bands) when you have history across time windows">
+              <Typography
+                component="span"
+                variant="caption"
+                color="text.secondary"
+                sx={{ cursor: "help", display: "inline-block", py: 0.5, minHeight: 36, lineHeight: "36px" }}
+              >
                 What is this?
               </Typography>
             </Tooltip>
           </Box>
 
           {!ready && !err ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                py: { xs: 5, sm: 6 },
+                minHeight: { xs: 200, sm: 160 },
+              }}
+              aria-busy="true"
+              aria-live="polite"
+              aria-label="Loading skill map"
+            >
               <CircularProgress />
             </Box>
           ) : null}
@@ -747,10 +949,14 @@ export default function SkillMapPage() {
                   <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, mb: 1.5 }}>
                     <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: g.dot, mt: 0.6, flexShrink: 0 }} />
                     <Box>
-                      <Typography variant="h6" fontWeight={800} color="text.primary">
+                      <Typography variant="h6" fontWeight={800} color="text.primary" sx={{ overflowWrap: "anywhere" }}>
                         {g.title}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                      >
                         {g.subtitle}
                       </Typography>
                     </Box>
@@ -762,8 +968,8 @@ export default function SkillMapPage() {
                         skill={s}
                         journeyMode={journeyMode}
                         expanded={expandedId === s.skill_id}
-                        onToggleExpand={(id) => setExpandedId((prev) => (prev === id ? null : id))}
-                        onPracticeSkill={(id) => goPractice(id)}
+                        onToggleExpand={handleToggleExpand}
+                        onPracticeSkill={handlePracticeSkill}
                       />
                     ))}
                   </Box>
@@ -772,8 +978,20 @@ export default function SkillMapPage() {
             })}
         </Box>
 
-        <Box sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
-          <NextStepPanel module={module} nextStep={nextStep} onPractice={goPractice} loading={loading} />
+        <Box
+          sx={{
+            minWidth: 0,
+            width: 1,
+            order: { xs: 1, lg: 2 },
+          }}
+        >
+          <NextStepPanel
+            module={module}
+            nextStep={nextStep}
+            onPractice={goPractice}
+            loading={loading}
+            loadError={Boolean(err)}
+          />
         </Box>
       </Box>
     </Box>

@@ -213,6 +213,19 @@ def format_band_label(difficulty_key: str) -> str:
     return difficulty_key
 
 
+def accuracy_to_micro_ielts_band(accuracy: float) -> float:
+    """Map item accuracy 0–1 to IELTS-style 1–9 in 0.5 steps (practice estimate, not official)."""
+    a = max(0.0, min(1.0, float(accuracy)))
+    raw = 1.0 + 8.0 * a
+    half = round(raw * 2.0) / 2.0
+    return max(1.0, min(9.0, half))
+
+
+def format_micro_ielts_band_label(accuracy: float) -> str:
+    b = accuracy_to_micro_ielts_band(accuracy)
+    return f"Band {int(b)}" if b == int(b) else f"Band {b:.1f}"
+
+
 def skill_mastery_status(accuracy: float, total: int) -> str:
     """UI tier: unknown (no data yet) / strong / medium / weak."""
     if total < 1:

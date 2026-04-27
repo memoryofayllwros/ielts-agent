@@ -70,6 +70,26 @@ export async function registerUser(email, password) {
   });
 }
 
+/**
+ * @returns {Promise<{
+ *   user_id: string, email: string, username: string, display_name?: string|null,
+ *   target_band?: number|null, target_reading?: number|null, target_listening?: number|null, target_writing?: number|null, target_speaking?: number|null,
+ *   past_exam_band?: number|null, past_reading?: number|null, past_listening?: number|null, past_writing?: number|null, past_speaking?: number|null,
+ *   past_exam_notes?: string|null
+ * }>}
+ */
+export async function fetchUserProfile() {
+  return request("/auth/me", { method: "GET" });
+}
+
+/** @param {Record<string, unknown>} body */
+export async function updateUserProfile(body) {
+  return request("/auth/me", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function generateSession({
   skill = "reading",
   topic = null,

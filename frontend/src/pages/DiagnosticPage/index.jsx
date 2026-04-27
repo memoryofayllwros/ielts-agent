@@ -15,6 +15,7 @@ import ObjectivePracticePage from "pages/ObjectivePracticePage";
 import WritingPracticePage from "pages/WritingPracticePage";
 import SpeakingPracticePage from "pages/SpeakingPracticePage";
 import { fetchDiagnosticStatus, generateDiagnosticStep } from "services/api";
+import { dashboardPage } from "utils/pageLayout";
 
 const STEPS = ["reading", "listening", "writing", "speaking"];
 const LABELS = ["Reading", "Listening", "Writing", "Speaking"];
@@ -84,7 +85,7 @@ export default function DiagnosticPage() {
 
   if (statusError) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Baseline diagnostic" />
         <Alert severity="error" sx={{ mt: 2 }}>{statusError}</Alert>
       </Box>
@@ -93,7 +94,7 @@ export default function DiagnosticPage() {
 
   if (!status) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+      <Box sx={dashboardPage.loading}>
         <CircularProgress />
       </Box>
     );
@@ -102,7 +103,7 @@ export default function DiagnosticPage() {
   if (status.completed && phase !== "run") {
     const bands = status.bands || {};
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Baseline diagnostic" />
         <Card sx={{ borderRadius: "16px", width: "100%", mt: 2 }}>
           <CardContent sx={{ p: 4 }}>
@@ -129,7 +130,7 @@ export default function DiagnosticPage() {
 
   if (phase === "intro") {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Baseline diagnostic" />
         <Card sx={{ borderRadius: "16px", width: "100%", mt: 1 }}>
           <CardContent sx={{ p: 4 }}>
@@ -155,7 +156,7 @@ export default function DiagnosticPage() {
 
   if (phase === "done") {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Baseline diagnostic" />
         <Card sx={{ borderRadius: "16px", width: "100%", mt: 2 }}>
           <CardContent sx={{ p: 4, textAlign: "center" }}>
@@ -179,7 +180,7 @@ export default function DiagnosticPage() {
 
   if (genError) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title={`Diagnostic — ${LABELS[activeIndex]}`} />
         <Alert severity="error" sx={{ mt: 2 }}>{genError}</Alert>
         <Button sx={{ mt: 2 }} onClick={() => setPhase("intro")}>Back</Button>
@@ -189,9 +190,9 @@ export default function DiagnosticPage() {
 
   if (genLoading || !diagSession?.session_id) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title={`Diagnostic — ${LABELS[activeIndex]}`} />
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+        <Box sx={dashboardPage.loadingPadded}>
           <Card sx={{ borderRadius: "16px", p: 5, textAlign: "center" }}>
             <CircularProgress sx={{ mb: 2 }} />
             <Typography variant="body1">Preparing {LABELS[activeIndex]} section…</Typography>

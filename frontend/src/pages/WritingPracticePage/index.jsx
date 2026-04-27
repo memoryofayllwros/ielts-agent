@@ -16,6 +16,7 @@ import DashboardNavbar from "components/Navbars/DashboardNavbar";
 import SessionSkillBreakdown from "components/LearningLoop/SessionSkillBreakdown";
 import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 import { generateSession, submitWriting } from "services/api";
+import { dashboardPage } from "utils/pageLayout";
 
 function wordCount(s) {
   return s.trim() ? s.trim().split(/\s+/).length : 0;
@@ -142,18 +143,18 @@ export default function WritingPracticePage({
 
   if (prefetchedSession?.session_id && (!session || session.session_id !== prefetchedSession.session_id)) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Diagnostic — Writing" />
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}><CircularProgress /></Box>
+        <Box sx={dashboardPage.loading}><CircularProgress /></Box>
       </Box>
     );
   }
 
   if (!session && !loading) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Writing" />
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <Box sx={dashboardPage.content}>
           <Card sx={{ borderRadius: "16px" }}>
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>IELTS Writing</Typography>
@@ -200,11 +201,9 @@ export default function WritingPracticePage({
 
   if (loading && !session) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Writing" />
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
-          <CircularProgress />
-        </Box>
+        <Box sx={dashboardPage.loading}><CircularProgress /></Box>
       </Box>
     );
   }
@@ -216,7 +215,7 @@ export default function WritingPracticePage({
     : (evaluation ? "Writing — Results" : "Writing");
 
   return (
-    <Box>
+    <Box sx={dashboardPage.root}>
       <DashboardNavbar title={navTitle} />
       <Card sx={{ mb: 2, borderRadius: "16px" }}>
         <CardContent sx={{ p: 2, display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>

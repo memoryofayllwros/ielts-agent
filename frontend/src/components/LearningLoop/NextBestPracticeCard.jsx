@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
 import CircularProgress from "@mui/material/CircularProgress";
-import Alert from "@mui/material/Alert";
 import { fetchNextStep } from "services/api";
 
 function formatDifficulty(d) {
@@ -16,10 +17,17 @@ function formatDifficulty(d) {
 }
 
 function practicePath(mod) {
-  if (mod === "reading") return "/practice/reading";
   if (mod === "listening") return "/practice/listening";
   if (mod === "writing") return "/practice/writing";
-  return "/practice/speaking";
+  if (mod === "speaking") return "/practice/speaking";
+  return "/practice/reading";
+}
+
+function moduleLabel(mod) {
+  if (mod === "listening") return "Listening";
+  if (mod === "writing") return "Writing";
+  if (mod === "speaking") return "Speaking";
+  return "Reading";
 }
 
 function startPracticeQuery(focusSkill) {
@@ -28,6 +36,8 @@ function startPracticeQuery(focusSkill) {
   if (focusSkill) p.set("focus", focusSkill);
   return p.toString();
 }
+
+const textBreak = { overflowWrap: "anywhere", wordBreak: "break-word" };
 
 /**
  * Fetches planner recommendation and surfaces a clear next action for the learning loop.
@@ -43,11 +53,12 @@ export default function NextBestPracticeCard({ module = "reading" }) {
   const load = useCallback(async () => {
     setErr("");
     setLoading(true);
+    setData(null);
     try {
       const n = await fetchNextStep(module);
       setData(n);
     } catch (e) {
-      setErr(e.message || "Could not load next step");
+      setErr(e.message || "Could not load your recommendation. Check your connection and try again.");
       setData(null);
     } finally {
       setLoading(false);
@@ -63,6 +74,23 @@ export default function NextBestPracticeCard({ module = "reading" }) {
   const bullets = data?.focus_practice_bullets || [];
   const desc = data?.focus_description;
 
+  const extraBullets = useMemo(() => {
+    const d = (desc || "").trim();
+    if (!d) return bullets;
+    return bullets.filter((b) => {
+      const t = String(b).trim();
+      return t && t !== d;
+    });
+  }, [desc, bullets]);
+
+  /** One plan line. If API sends suggested_practice, it already includes band; do not add a second “Session” row. */
+  const planLine = useMemo(() => {
+    if (!data) return "";
+    if (data.suggested_practice) return data.suggested_practice;
+    if (data.difficulty) return `Practice at ${formatDifficulty(data.difficulty)}.`;
+    return "";
+  }, [data]);
+
   const onStart = () => {
     const path = practicePath(module);
     const q = startPracticeQuery(data?.focus_skill);
@@ -71,106 +99,163 @@ export default function NextBestPracticeCard({ module = "reading" }) {
 
   return (
     <Card
+      elevation={0}
       sx={{
-        borderRadius: "16px",
+        borderRadius: 2,
         border: "1px solid",
-        borderColor: "rgba(13, 148, 136, 0.28)",
-        background: "linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, #fff 100%)",
+        borderColor: "divider",
+        bgcolor: "background.paper",
+        background: (t) => `linear-gradient(180deg, ${t.palette.grey[50]} 0%, ${t.palette.background.paper} 100%)`,
+        boxShadow: "none",
       }}
     >
-      <CardContent sx={{ p: 2.5 }}>
-        <Typography variant="overline" fontWeight={800} color="primary" letterSpacing={1}>
-          Next best practice
-        </Typography>
+      <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+        <Stack component="section" aria-label="Recommended next practice" spacing={0}>
+          <Typography
+            component="h2"
+            variant="overline"
+            color="primary"
+            fontWeight={800}
+            sx={{ letterSpacing: "0.1em", lineHeight: 1.2, display: "block", mb: 1.5 }}
+          >
+            Next up · {moduleLabel(module)}
+          </Typography>
 
-        {loading && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 2 }}>
-            <CircularProgress size={22} />
-            <Typography variant="body2" color="text.secondary">
-              Loading your recommendation…
-            </Typography>
-          </Box>
-        )}
-
-        {err && !loading && <Alert severity="warning" sx={{ mt: 1, borderRadius: "8px" }}>{err}</Alert>}
-
-        {!loading && !err && data && (
-          <>
-            {hasFocus ? (
-              <>
-                <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
-                  Focus skill
-                </Typography>
-                <Typography variant="h5" color="primary" fontWeight={800} sx={{ mt: 0.25 }}>
-                  {focusLabel}
-                </Typography>
-                {desc ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7 }}>
-                    {desc}
-                  </Typography>
-                ) : null}
-                {bullets.length > 0 && (
-                  <Box component="ul" sx={{ m: 0, mt: 1.5, pl: 2.5 }}>
-                    {bullets.map((b) => (
-                      <li key={b}>
-                        <Typography variant="body2" color="text.secondary" component="span" sx={{ lineHeight: 1.7 }}>
-                          {b}
-                        </Typography>
-                      </li>
-                    ))}
-                  </Box>
-                )}
-              </>
-            ) : (
-              <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1, color: "text.primary" }}>
-                Build a bit more data
-              </Typography>
-            )}
-
-            {data.reason ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-                <strong>Why:</strong> {data.reason}
-              </Typography>
-            ) : data.message ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-                {data.message}
-              </Typography>
-            ) : null}
-
-            {(data.difficulty || data.suggested_practice) && (
-              <Box sx={{ mt: 2 }}>
-                {data.difficulty ? (
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Suggested set: {formatDifficulty(data.difficulty)} · short targeted session
-                  </Typography>
-                ) : null}
-                {data.suggested_practice ? (
-                  <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 500, color: "text.primary" }}>
-                    {data.suggested_practice}
-                  </Typography>
-                ) : null}
-              </Box>
-            )}
-
-            <Button
-              variant="contained"
-              fullWidth
-              disabled={loading}
-              onClick={onStart}
-              sx={{ mt: 2, borderRadius: "10px", fontWeight: 800, py: 1.25 }}
+          {loading && (
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1, py: 1.5 }}
+              aria-busy="true"
+              aria-live="polite"
+              aria-label="Loading practice recommendation"
             >
-              Start practice
-            </Button>
-            <Button
-              fullWidth
-              component={Link}
-              to={`/learning/skill-map?module=${encodeURIComponent(module)}`}
-              sx={{ mt: 1, borderRadius: "10px", fontWeight: 600 }}
-            >
-              View on skill map
-            </Button>
-          </>
-        )}
+              <CircularProgress size={22} aria-hidden />
+              <Typography variant="body2" color="text.secondary">
+                Loading…
+              </Typography>
+            </Box>
+          )}
+
+          {err && !loading ? (
+            <Stack spacing={1.5}>
+              <Typography variant="body2" color="warning.dark" sx={{ ...textBreak, fontWeight: 600 }}>
+                {err}
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => load()}
+                sx={{ fontWeight: 700, alignSelf: "flex-start" }}
+              >
+                Retry
+              </Button>
+              <Button
+                fullWidth
+                component={Link}
+                to={`/learning/skill-map?module=${encodeURIComponent(module)}`}
+                variant="outlined"
+                sx={{ borderRadius: "10px", fontWeight: 600 }}
+              >
+                Open skill map
+              </Button>
+            </Stack>
+          ) : null}
+
+          {!loading && !err && data && (
+            <Stack spacing={0}>
+              {hasFocus ? (
+                <Box component="div">
+                  <Typography
+                    component="h3"
+                    variant="h6"
+                    color="text.primary"
+                    fontWeight={800}
+                    sx={{ lineHeight: 1.3, letterSpacing: "-0.02em", ...textBreak }}
+                  >
+                    {focusLabel}
+                  </Typography>
+                  {desc ? (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 0.5, lineHeight: 1.55, ...textBreak }}
+                    >
+                      {desc}
+                    </Typography>
+                  ) : null}
+                  {extraBullets.length > 0 && (
+                    <Box component="ul" sx={{ m: 0, mt: 1, pl: 2, color: "text.secondary" }}>
+                      {extraBullets.map((b, bi) => (
+                        <li key={`${bi}-${String(b).slice(0, 64)}`}>
+                          <Typography variant="body2" component="span" sx={{ lineHeight: 1.55, ...textBreak }}>
+                            {b}
+                          </Typography>
+                        </li>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              ) : (
+                <Typography
+                  component="h3"
+                  variant="subtitle1"
+                  fontWeight={800}
+                  sx={{ color: "text.primary", lineHeight: 1.3, letterSpacing: "-0.01em", ...textBreak }}
+                >
+                  {data.message || "A few more sessions, then we can suggest a focus."}
+                </Typography>
+              )}
+
+              {data.reason ? (
+                <>
+                  <Divider sx={{ my: 1.75, borderColor: "divider" }} />
+                  <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0, lineHeight: 1.6, ...textBreak }}>
+                    <Box component="span" sx={{ color: "text.disabled", fontWeight: 600 }}>
+                      Why this{" "}
+                    </Box>
+                    {data.reason}
+                  </Typography>
+                </>
+              ) : null}
+
+              {planLine ? (
+                <>
+                  <Divider sx={{ my: 1.75, borderColor: "divider" }} />
+                  <Typography
+                    variant="body2"
+                    color="text.primary"
+                    fontWeight={600}
+                    component="p"
+                    sx={{ m: 0, lineHeight: 1.5, ...textBreak }}
+                  >
+                    {planLine}
+                  </Typography>
+                </>
+              ) : null}
+
+              <Stack spacing={1} sx={{ mt: 2.5 }}>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={onStart}
+                  size="large"
+                  sx={{ borderRadius: "10px", fontWeight: 800, py: 1.25, touchAction: "manipulation" }}
+                >
+                  Start this practice
+                </Button>
+                <Button
+                  fullWidth
+                  component={Link}
+                  to={`/learning/skill-map?module=${encodeURIComponent(module)}`}
+                  variant="text"
+                  size="small"
+                  sx={{ fontWeight: 600, color: "text.secondary" }}
+                >
+                  See it on the skill map
+                </Button>
+              </Stack>
+            </Stack>
+          )}
+        </Stack>
       </CardContent>
     </Card>
   );

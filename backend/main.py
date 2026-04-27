@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, Response
 
 from models import (
     RegisterRequest, LoginRequest, AuthResponse,
+    UserProfileResponse, UserProfileUpdate,
     GenerateRequest, DiagnosticGenerateRequest, SubmitRequest, SubmitResponse,
     SubmitWritingRequest, SubmitSpeakingJsonRequest, ListeningTtsRequest,
     QuestionResult, ProgressResponse, ProgressEntry, ResultDetail,
@@ -39,7 +40,7 @@ from agents import (
 from auth import hash_password, verify_password, create_access_token, get_current_user_id
 from database import (
     init_db, close_db,
-    create_user, get_user_by_email, get_user_by_id,
+    create_user, get_user_by_email, get_user_by_id, set_user_profile_fields,
     save_session, get_session_record,
     save_result, get_progress, get_result_detail,
     diagnostic_status, record_diagnostic_skill_outcome,
@@ -51,6 +52,7 @@ from learning import (
     compare_weekly_skills,
     difficulty_string_from_band,
     format_band_label,
+    format_micro_ielts_band_label,
     module_weighted_score,
     question_results_to_skill_outcomes,
     recommend_focus_skill,
@@ -136,6 +138,66 @@ async def login(req: LoginRequest):
     )
 
 
+def _user_to_profile_response(user: dict) -> UserProfileResponse:
+    p = user.get("profile") or {}
+
+    def fband(k: str) -> Optional[float]:
+        v = p.get(k)
+        if v is None:
+            return None
+        return float(v)
+
+    return UserProfileResponse(
+        user_id=user["_id"],
+        email=user.get("email") or "",
+        username=user.get("username") or "",
+        display_name=(p.get("display_name") or None),
+        target_band=fband("target_band"),
+        target_reading=fband("target_reading"),
+        target_listening=fband("target_listening"),
+        target_writing=fband("target_writing"),
+        target_speaking=fband("target_speaking"),
+        past_exam_band=fband("past_exam_band"),
+        past_reading=fband("past_reading"),
+        past_listening=fband("past_listening"),
+        past_writing=fband("past_writing"),
+        past_speaking=fband("past_speaking"),
+        past_exam_notes=(p.get("past_exam_notes") or None),
+    )
+
+
+@app.get("/api/auth/me", response_model=UserProfileResponse)
+async def auth_get_me(user_id: str = Depends(get_current_user_id)):
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _user_to_profile_response(user)
+
+
+@app.put("/api/auth/me", response_model=UserProfileResponse)
+async def auth_update_me(req: UserProfileUpdate, user_id: str = Depends(get_current_user_id)):
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    data = {
+        "display_name": req.display_name,
+        "target_band": req.target_band,
+        "target_reading": req.target_reading,
+        "target_listening": req.target_listening,
+        "target_writing": req.target_writing,
+        "target_speaking": req.target_speaking,
+        "past_exam_band": req.past_exam_band,
+        "past_reading": req.past_reading,
+        "past_listening": req.past_listening,
+        "past_writing": req.past_writing,
+        "past_speaking": req.past_speaking,
+        "past_exam_notes": req.past_exam_notes,
+    }
+    await set_user_profile_fields(user_id, data)
+    user = await get_user_by_id(user_id)
+    return _user_to_profile_response(user)
+
+
 def _questions_safe(raw: dict) -> list:
     out = []
     for q in raw.get("questions") or []:
@@ -158,8 +220,53 @@ def _questions_safe(raw: dict) -> list:
 
 # ── Practice ──────────────────────────────────────────────────────────────────
 
+def effective_target_from_profile(user: Optional[dict]) -> Optional[float]:
+    """Prefer stored overall target; else mean of any per-skill targets."""
+    if not user:
+        return None
+    p = user.get("profile") or {}
+    if p.get("target_band") is not None:
+        return float(p["target_band"])
+    vals: list[float] = []
+    for k in ("target_reading", "target_listening", "target_writing", "target_speaking"):
+        v = p.get(k)
+        if v is not None:
+            vals.append(float(v))
+    if not vals:
+        return None
+    return round(sum(vals) / len(vals), 1)
+
+
+def practice_band_for_skill(user: dict, skill: str, req: GenerateRequest) -> Optional[float]:
+    if req.target_band is not None:
+        return float(req.target_band)
+    p = user.get("profile") or {}
+    by_skill = {
+        "reading": "target_reading",
+        "listening": "target_listening",
+        "writing": "target_writing",
+        "speaking": "target_speaking",
+    }
+    tkey = by_skill.get(skill)
+    if tkey and p.get(tkey) is not None:
+        return float(p[tkey])
+    if p.get("target_band") is not None:
+        return float(p["target_band"])
+    vals: list[float] = []
+    for k in ("target_reading", "target_listening", "target_writing", "target_speaking"):
+        v = p.get(k)
+        if v is not None:
+            vals.append(float(v))
+    if vals:
+        return round(sum(vals) / len(vals), 1)
+    return None
+
+
 async def _learner_band_hint(user_id: str):
     user = await get_user_by_id(user_id)
+    b = effective_target_from_profile(user)
+    if b is not None:
+        return b
     return average_diagnostic_band(user)
 
 
@@ -169,7 +276,9 @@ async def _resolve_practice_focus(
     req: GenerateRequest,
 ) -> tuple[Optional[str], str]:
     user = await get_user_by_id(user_id)
-    band = req.target_band if req.target_band is not None else average_diagnostic_band(user)
+    band = practice_band_for_skill(user, skill, req)
+    if band is None:
+        band = average_diagnostic_band(user)
     dd = difficulty_string_from_band(band)
     focus: Optional[str] = None
     if req.use_adaptive:
@@ -663,11 +772,11 @@ async def learning_next_step(
     focus = recommend_focus_skill(acc, module)
     if not focus:
         return NextStepResponse(
-            message="Complete a few practice sets to get a personalised focus.",
+            message="Do a few sessions first so we can rank skills.",
             module=module,
             difficulty=dd,
-            reason="The planner needs a bit of outcome data before it can rank your micro-skills.",
-            suggested_practice=f"Try any {module} practice session at {band_lbl}.",
+            reason="We need a little tagged data before the planner can pick a focus.",
+            suggested_practice=f"{module.capitalize()} · {band_lbl} — any session.",
             focus_description="",
             focus_practice_bullets=[],
         )
@@ -676,7 +785,8 @@ async def learning_next_step(
     f_desc = str(meta.get("description", ""))
     f_bullets = focus_practice_bullets_for_skill(focus)
     row = acc.get(focus) or {}
-    pct = int(round(float(row.get("accuracy", 0.0)) * 100))
+    acc_focus = float(row.get("accuracy", 0.0))
+    band_lbl_focus = format_micro_ielts_band_label(acc_focus)
     tot = int(row.get("total", 0))
     if tot >= 1:
         others = [
@@ -685,23 +795,18 @@ async def learning_next_step(
             if sid != focus and int((acc.get(sid) or {}).get("total", 0)) >= 1
         ]
         oth_avg = sum(others) / len(others) if others else 0.5
-        if float(row.get("accuracy", 0.0)) + 0.08 < oth_avg:
+        oth_band_lbl = format_micro_ielts_band_label(oth_avg)
+        if acc_focus + 0.08 < oth_avg:
             reason = (
-                f"Your accuracy on {lbl} ({pct}%) is lower than your other {module} skills "
-                f"you have practised — extra reps here will raise your overall {module} level fastest."
+                f"{lbl} looks weaker here ({band_lbl_focus}) than your other {module} skills you have data for "
+                f"(~{oth_band_lbl}). Extra reps on this move {module} the fastest."
             )
         else:
-            reason = (
-                f"Among the skills you have tried, {lbl} has the lowest accuracy ({pct}%). "
-                "Short targeted sets help lock this in."
-            )
+            reason = f"Among skills you have tried, {lbl} is lowest ({band_lbl_focus}). Short sets help most."
     else:
-        reason = (
-            f"You have not logged many tagged attempts on {lbl} yet. "
-            f"The planner suggests this as a starting focus for {module}."
-        )
+        reason = f"Few tagged attempts on {lbl} yet, so we start you here in {module}."
 
-    suggested = f"{module.capitalize()} · {band_lbl} — one session emphasising this micro-skill."
+    suggested = f"{module.capitalize()} · {band_lbl} — one session on this micro-skill."
 
     return NextStepResponse(
         focus_skill=focus,

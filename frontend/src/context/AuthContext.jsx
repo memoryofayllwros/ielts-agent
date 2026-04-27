@@ -39,6 +39,16 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  /** Merge server profile fields (and any partial session fields) into stored session. */
+  const mergeSession = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -46,6 +56,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        mergeSession,
         isAuthenticated: !!(user && typeof user.access_token === "string" && user.access_token),
       }}
     >

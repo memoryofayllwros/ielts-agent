@@ -14,6 +14,7 @@ import ResultSummary from "components/LearningLoop/ResultSummary";
 import SessionSkillBreakdown from "components/LearningLoop/SessionSkillBreakdown";
 import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 import { generateSession, submitAnswers, fetchListeningTts } from "services/api";
+import { dashboardPage } from "utils/pageLayout";
 
 function ListenToolbar({ transcript, sessionId }) {
   const utterRef = useRef(null);
@@ -185,9 +186,9 @@ export default function ObjectivePracticePage({
   const waitingPrefetch = prefetchedSession?.session_id && !session?.session_id;
   if (waitingPrefetch) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title={navbarTitle} />
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+        <Box sx={dashboardPage.loadingPadded}>
           <Card sx={{ borderRadius: "16px", p: 5, textAlign: "center" }}>
             <CircularProgress sx={{ mb: 3 }} />
             <Typography variant="h6" fontWeight={600}>{loadingBlurb}</Typography>
@@ -199,9 +200,9 @@ export default function ObjectivePracticePage({
 
   if (!session && !loading) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title={navbarTitle} />
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <Box sx={dashboardPage.content}>
           <Card sx={{ borderRadius: "16px" }}>
             <CardContent sx={{ p: 4, textAlign: "center" }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>{navbarTitle}</Typography>
@@ -236,9 +237,9 @@ export default function ObjectivePracticePage({
 
   if (loading && !session) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title={navbarTitle} />
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+        <Box sx={dashboardPage.loadingPadded}>
           <Card sx={{ borderRadius: "16px", p: 5, textAlign: "center" }}>
             <CircularProgress sx={{ mb: 3 }} />
             <Typography variant="h6" fontWeight={600}>{loadingBlurb}</Typography>
@@ -252,7 +253,7 @@ export default function ObjectivePracticePage({
     const resultMap = {};
     results.question_results.forEach((r) => { resultMap[r.question_id] = r; });
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Results" />
         <ResultSummary results={results} />
         <Box sx={{ my: 2 }}>
@@ -293,7 +294,7 @@ export default function ObjectivePracticePage({
   }
 
   return (
-    <Box>
+    <Box sx={dashboardPage.root}>
       <DashboardNavbar title={navbarTitle} />
       <Card sx={{ mb: 3, borderRadius: "16px" }}>
         <CardContent sx={{ p: 2.5, display: "flex", alignItems: "center", gap: 2 }}>

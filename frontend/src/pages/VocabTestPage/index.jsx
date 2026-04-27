@@ -21,7 +21,9 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import SpellcheckIcon from "@mui/icons-material/Spellcheck";
 import HistoryIcon from "@mui/icons-material/History";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { alpha } from "@mui/material/styles";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
+import { dashboardPage } from "utils/pageLayout";
 import {
   generateVocabTest,
   submitVocabAnswers,
@@ -157,7 +159,13 @@ function HistoryPanel({ onReview }) {
     } catch { return iso; }
   };
 
-  if (loading) return <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}><CircularProgress /></Box>;
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 5 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
   if (error) return <Alert severity="error" sx={{ borderRadius: "8px" }}>{error}</Alert>;
   if (!history?.length) return (
     <Box sx={{ textAlign: "center", py: 4 }}>
@@ -220,7 +228,13 @@ function ReviewPanel({ resultId, onBack }) {
       .finally(() => setLoading(false));
   }, [resultId]);
 
-  if (loading) return <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}><CircularProgress /></Box>;
+  if (loading) {
+    return (
+      <Box sx={dashboardPage.loading}>
+        <CircularProgress />
+      </Box>
+    );
+  }
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!data) return null;
 
@@ -288,7 +302,16 @@ function ReviewPanel({ resultId, onBack }) {
                 })}
               </Box>
               {!r.is_correct && r.explanation && (
-                <Box sx={{ mt: 1, p: 1.5, bgcolor: "background.paper", borderRadius: "8px", borderLeft: "3px solid", borderColor: "primary.main" }}>
+                <Box
+                  sx={(theme) => ({
+                    mt: 1,
+                    p: 1.5,
+                    borderRadius: "8px",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === "light" ? 0.06 : 0.12),
+                  })}
+                >
                   <Typography variant="caption" color="primary" fontWeight={700}>Explanation: </Typography>
                   <Typography variant="caption" color="text.secondary">{r.explanation}</Typography>
                 </Box>
@@ -386,9 +409,9 @@ export default function VocabTestPage() {
   // ── START ───────────────────────────────────────────────────────────────────
   if (view === "start") {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Vocabulary Level Test" />
-        <Box sx={{ width: "100%", minWidth: 0 }}>
+        <Box sx={dashboardPage.content}>
           <Card sx={{ borderRadius: "16px" }}>
             <CardContent sx={{ p: 4 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
@@ -465,9 +488,9 @@ export default function VocabTestPage() {
   // ── LOADING ─────────────────────────────────────────────────────────────────
   if (view === "loading") {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Vocabulary Level Test" />
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 8 }}>
+        <Box sx={dashboardPage.loadingPadded}>
           <Card sx={{ borderRadius: "16px", p: 5, textAlign: "center" }}>
             <CircularProgress sx={{ mb: 3 }} />
             <Typography variant="h6" fontWeight={600}>Generating your vocabulary test…</Typography>
@@ -484,7 +507,7 @@ export default function VocabTestPage() {
     const answered = answers[currentQuestion.id];
 
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title={`Vocabulary Test — ${session.topic}`} />
 
         {/* Progress bar */}
@@ -516,13 +539,16 @@ export default function VocabTestPage() {
               <LevelChip level={currentQuestion.level} />
             </Box>
 
-            <Box sx={{
-              p: 2.5, mb: 3,
-              bgcolor: "grey.100",
-              borderRadius: "12px",
-              borderLeft: "4px solid",
-              borderColor: "primary.main",
-            }}>
+            <Box
+              sx={{
+                p: 2.5,
+                mb: 3,
+                bgcolor: "grey.100",
+                borderRadius: "12px",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
               <Typography variant="body1" color="text.secondary" sx={{ fontStyle: "italic", lineHeight: 1.8 }}>
                 {currentQuestion.sentence}
               </Typography>
@@ -648,7 +674,7 @@ export default function VocabTestPage() {
   // ── RESULTS ─────────────────────────────────────────────────────────────────
   if (view === "results" && result) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Your Vocabulary Result" />
 
         {/* Main result card */}
@@ -742,7 +768,7 @@ export default function VocabTestPage() {
   // ── HISTORY ─────────────────────────────────────────────────────────────────
   if (view === "history") {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Vocabulary Test History" />
         <Card sx={{ borderRadius: "16px" }}>
           <CardContent sx={{ p: 3 }}>
@@ -768,7 +794,7 @@ export default function VocabTestPage() {
   // ── REVIEW ───────────────────────────────────────────────────────────────────
   if (view === "review" && reviewId) {
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Vocabulary Test Review" />
         <ReviewPanel
           resultId={reviewId}

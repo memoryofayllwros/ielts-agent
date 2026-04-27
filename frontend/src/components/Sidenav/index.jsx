@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation, NavLink } from "react-router-dom";
+import { useLocation, NavLink, matchPath } from "react-router-dom";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
@@ -86,12 +86,14 @@ function Sidenav({ routes }) {
 
       <List sx={{ flex: 1, px: 1 }}>
         {routes.map((route) => {
-          const isActive = pathname === route.route || pathname.startsWith(`${route.route}/`);
+          const isActive =
+            matchPath({ path: route.route, end: route.end === true, caseSensitive: false }, pathname) != null;
           return (
             <ListItem key={route.key} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 component={NavLink}
                 to={route.route}
+                end={route.end === true}
                 sx={{
                   borderRadius: "10px",
                   px: 2,
@@ -171,6 +173,7 @@ Sidenav.propTypes = {
       name: PropTypes.string.isRequired,
       icon: PropTypes.string.isRequired,
       route: PropTypes.string.isRequired,
+      end: PropTypes.bool,
     })
   ).isRequired,
 };

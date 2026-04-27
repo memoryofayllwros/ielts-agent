@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 from typing import Any, List, Literal, Optional, Dict
 
 
@@ -30,6 +30,100 @@ class AuthResponse(BaseModel):
     user_id: str
     username: str
     email: str
+
+
+def _ielts_band_value(v: Optional[float], field: str) -> Optional[float]:
+    if v is None:
+        return None
+    x = float(v)
+    if x < 4.0 or x > 9.0:
+        raise ValueError(f"{field} must be between 4 and 9")
+    doubled = round(x * 2)
+    if abs(x * 2 - doubled) > 1e-6:
+        raise ValueError(f"{field} must use half-point steps (e.g. 6.5)")
+    return doubled / 2.0
+
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    email: str
+    username: str
+    display_name: Optional[str] = None
+    # Overall and per-skill (IELTS reports Listening, Reading, Writing, Speaking, plus an overall band).
+    target_band: Optional[float] = None
+    target_reading: Optional[float] = None
+    target_listening: Optional[float] = None
+    target_writing: Optional[float] = None
+    target_speaking: Optional[float] = None
+    past_exam_band: Optional[float] = None
+    past_reading: Optional[float] = None
+    past_listening: Optional[float] = None
+    past_writing: Optional[float] = None
+    past_speaking: Optional[float] = None
+    past_exam_notes: Optional[str] = None
+
+
+class UserProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    target_band: Optional[float] = None
+    target_reading: Optional[float] = None
+    target_listening: Optional[float] = None
+    target_writing: Optional[float] = None
+    target_speaking: Optional[float] = None
+    past_exam_band: Optional[float] = None
+    past_reading: Optional[float] = None
+    past_listening: Optional[float] = None
+    past_writing: Optional[float] = None
+    past_speaking: Optional[float] = None
+    past_exam_notes: Optional[str] = None
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def strip_name_up(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s if s else None
+
+    @field_validator("past_exam_notes", mode="before")
+    @classmethod
+    def notes_up(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        s = str(v).strip()[:2000]
+        return s if s else None
+
+    @field_validator("target_band", mode="before")
+    @classmethod
+    def v_target_band(cls, v: Any) -> Optional[float]:
+        if v is None or v == "":
+            return None
+        return _ielts_band_value(float(v), "target_band")
+
+    @field_validator("past_exam_band", mode="before")
+    @classmethod
+    def v_past_exam_band(cls, v: Any) -> Optional[float]:
+        if v is None or v == "":
+            return None
+        return _ielts_band_value(float(v), "past_exam_band")
+
+    @field_validator(
+        "target_reading",
+        "target_listening",
+        "target_writing",
+        "target_speaking",
+        "past_reading",
+        "past_listening",
+        "past_writing",
+        "past_speaking",
+        mode="before",
+    )
+    @classmethod
+    def v_skill_band_fields(cls, v: Any, info: ValidationInfo) -> Optional[float]:
+        if v is None or v == "":
+            return None
+        fname = info.field_name if info.field_name else "band"
+        return _ielts_band_value(float(v), fname)
 
 
 # ── Practice ──────────────────────────────────────────────────────────────────

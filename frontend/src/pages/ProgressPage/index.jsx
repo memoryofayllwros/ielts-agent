@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -11,9 +11,10 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import CircularProgress from "@mui/material/CircularProgress";
+import Skeleton from "@mui/material/Skeleton";
 import Alert from "@mui/material/Alert";
 import Divider from "@mui/material/Divider";
+import { alpha } from "@mui/material/styles";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -24,8 +25,25 @@ import Checkbox from "@mui/material/Checkbox";
 import FormGroup from "@mui/material/FormGroup";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
 import { fetchProgress, fetchResultDetail, fetchWeeklyReport } from "services/api";
+import { dashboardPage } from "utils/pageLayout";
 
-function ScoreBadge({ percentage }) {
+const EMPTY_PROGRESS_ENTRIES = [];
+
+function formatProgressDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString("en-AU", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+const ScoreBadge = memo(function ScoreBadge({ percentage }) {
   const color = percentage >= 70 ? "success" : percentage >= 40 ? "warning" : "error";
   return (
     <Chip
@@ -35,9 +53,9 @@ function ScoreBadge({ percentage }) {
       sx={{ fontWeight: 700, borderRadius: "6px" }}
     />
   );
-}
+});
 
-function StatBox({ value, label }) {
+const StatBox = memo(function StatBox({ value, label }) {
   return (
     <Box sx={{ textAlign: "center", flex: 1, p: 2 }}>
       <Typography variant="h4" fontWeight={700} color="primary">
@@ -48,11 +66,11 @@ function StatBox({ value, label }) {
       </Typography>
     </Box>
   );
-}
+});
 
 // ── Review view ───────────────────────────────────────────────────────────────
 
-function ReviewPassage({ passage, title = "Passage" }) {
+const ReviewPassage = memo(function ReviewPassage({ passage, title = "Passage" }) {
   if (!passage) return null;
   return (
     <Card sx={{ mb: 3, borderRadius: "16px" }}>
@@ -74,7 +92,7 @@ function ReviewPassage({ passage, title = "Passage" }) {
       </CardContent>
     </Card>
   );
-}
+});
 
 function skillLabel(skill) {
   const s = skill || "reading";
@@ -90,7 +108,7 @@ function skillChipColor(skill) {
   return "default";
 }
 
-function ReviewEvaluation({ evaluation }) {
+const ReviewEvaluation = memo(function ReviewEvaluation({ evaluation }) {
   if (!evaluation) return null;
   return (
     <Card sx={{ mb: 3, borderRadius: "16px" }}>
@@ -109,9 +127,9 @@ function ReviewEvaluation({ evaluation }) {
       </CardContent>
     </Card>
   );
-}
+});
 
-function ReviewQuestion({ qr, index }) {
+const ReviewQuestion = memo(function ReviewQuestion({ qr, index }) {
   const correctSet = new Set(qr.correct_answers || []);
   const userSet = new Set(qr.user_answers || []);
 
@@ -260,14 +278,14 @@ function ReviewQuestion({ qr, index }) {
 
         {qr.explanation && (
           <Box
-            sx={{
+            sx={(theme) => ({
               mt: 2,
               p: 2,
-              bgcolor: "grey.100",
               borderRadius: "10px",
-              borderLeft: "3px solid",
-              borderColor: "primary.main",
-            }}
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === "light" ? 0.06 : 0.12),
+            })}
           >
             <Typography variant="caption" color="primary" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
               Explanation
@@ -279,6 +297,74 @@ function ReviewQuestion({ qr, index }) {
         )}
       </CardContent>
     </Card>
+  );
+});
+
+const ProgressSessionRow = memo(function ProgressSessionRow({ entry, onReview }) {
+  return (
+    <TableRow
+      hover
+      sx={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "0 56px",
+        "&:last-child td": { border: 0 },
+      }}
+    >
+      <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
+        {formatProgressDate(entry.completed_at)}
+      </TableCell>
+      <TableCell>
+        <Chip label={skillLabel(entry.skill)} size="small" color={skillChipColor(entry.skill)} sx={{ fontWeight: 600 }} />
+      </TableCell>
+      <TableCell sx={{ fontWeight: 500, color: "text.primary" }}>{entry.topic}</TableCell>
+      <TableCell sx={{ color: "text.primary" }}>
+        {entry.total_score}/{entry.max_score}
+      </TableCell>
+      <TableCell>
+        <ScoreBadge percentage={entry.percentage} />
+      </TableCell>
+      <TableCell align="right">
+        <Button
+          size="small"
+          variant="text"
+          color="primary"
+          onClick={() => onReview(entry.id)}
+          sx={{ fontWeight: 600, borderRadius: "6px", fontSize: "0.75rem" }}
+        >
+          Review
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+function ProgressListSkeleton() {
+  return (
+    <TableContainer>
+      <Table size="small" aria-hidden>
+        <TableHead>
+          <TableRow>
+            {["Date", "Skill", "Topic", "Score", "Result", ""].map((h) => (
+              <TableCell key={h || "actions"} sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
+                {h}
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {Array.from({ length: 5 }, (_, i) => (
+            <TableRow key={i}>
+              <TableCell><Skeleton variant="text" width={120} /></TableCell>
+              <TableCell><Skeleton variant="rounded" width={72} height={24} sx={{ borderRadius: "4px" }} /></TableCell>
+              <TableCell><Skeleton variant="text" width="100%" sx={{ maxWidth: 200 }} /></TableCell>
+              <TableCell><Skeleton variant="text" width={40} /></TableCell>
+              <TableCell><Skeleton variant="rounded" width={48} height={24} sx={{ borderRadius: "4px" }} /></TableCell>
+              <TableCell align="right"><Skeleton variant="text" width={52} sx={{ ml: "auto" }} /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
@@ -329,7 +415,7 @@ export default function ProgressPage() {
     loadProgress();
   }, [loadProgress]);
 
-  const openReview = async (resultId) => {
+  const openReview = useCallback(async (resultId) => {
     setLoadingReview(true);
     setReviewError("");
     setReviewData(null);
@@ -342,27 +428,17 @@ export default function ProgressPage() {
     } finally {
       setLoadingReview(false);
     }
-  };
-
-  const formatDate = (iso) => {
-    try {
-      return new Date(iso).toLocaleDateString("en-AU", {
-        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-      });
-    } catch {
-      return iso;
-    }
-  };
+  }, []);
 
   // ── Review view ─────────────────────────────────────────────────────────
   if (view === "review") {
     const topicLabel = reviewData?.topic || "…";
     const scoreLabel = reviewData ? `${reviewData.percentage}%` : "";
-    const dateLabel = reviewData ? formatDate(reviewData.completed_at) : "";
+    const dateLabel = reviewData ? formatProgressDate(reviewData.completed_at) : "";
     const pctColor = reviewData ? (reviewData.percentage >= 70 ? "success" : reviewData.percentage >= 40 ? "warning" : "error") : "default";
 
     return (
-      <Box>
+      <Box sx={dashboardPage.root}>
         <DashboardNavbar title="Review Session" />
 
         {/* Nav bar */}
@@ -389,8 +465,10 @@ export default function ProgressPage() {
         </Card>
 
         {loadingReview && (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
-            <CircularProgress />
+          <Box sx={{ mt: 2 }} aria-busy="true" aria-label="Loading session">
+            <Skeleton variant="rounded" height={56} sx={{ borderRadius: "16px", mb: 2 }} />
+            <Skeleton variant="rounded" height={140} sx={{ borderRadius: "16px", mb: 2 }} />
+            <Skeleton variant="rounded" height={200} sx={{ borderRadius: "16px" }} />
           </Box>
         )}
         {reviewError && <Alert severity="error" sx={{ mb: 2, borderRadius: "8px" }}>{reviewError}</Alert>}
@@ -451,10 +529,10 @@ export default function ProgressPage() {
   }
 
   // ── List view ───────────────────────────────────────────────────────────
-  const entries = progress?.entries || [];
+  const entries = progress?.entries ?? EMPTY_PROGRESS_ENTRIES;
 
   return (
-    <Box>
+    <Box sx={dashboardPage.root}>
       <DashboardNavbar title="Progress" />
 
       {weekly && (
@@ -471,7 +549,7 @@ export default function ProgressPage() {
             )}
             {weekly.still_weak?.length > 0 && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Still below 50%: {weekly.still_weak.join(" · ")}
+                Still below Band 5 (practice estimate): {weekly.still_weak.join(" · ")}
               </Typography>
             )}
           </CardContent>
@@ -526,11 +604,7 @@ export default function ProgressPage() {
             </>
           )}
 
-          {loadingList && (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-              <CircularProgress />
-            </Box>
-          )}
+          {loadingList && <ProgressListSkeleton />}
 
           {listError && <Alert severity="error" sx={{ borderRadius: "8px" }}>{listError}</Alert>}
 
@@ -543,7 +617,7 @@ export default function ProgressPage() {
 
           {!loadingList && entries.length > 0 && (
             <TableContainer>
-              <Table size="small">
+              <Table size="small" aria-label="Practice sessions">
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Date</TableCell>
@@ -556,38 +630,7 @@ export default function ProgressPage() {
                 </TableHead>
                 <TableBody>
                   {entries.map((entry) => (
-                    <TableRow
-                      key={entry.id}
-                      hover
-                      sx={{ "&:last-child td": { border: 0 } }}
-                    >
-                      <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
-                        {formatDate(entry.completed_at)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={skillLabel(entry.skill)} size="small" color={skillChipColor(entry.skill)} sx={{ fontWeight: 600 }} />
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 500, color: "text.primary" }}>
-                        {entry.topic}
-                      </TableCell>
-                      <TableCell sx={{ color: "text.primary" }}>
-                        {entry.total_score}/{entry.max_score}
-                      </TableCell>
-                      <TableCell>
-                        <ScoreBadge percentage={entry.percentage} />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Button
-                          size="small"
-                          variant="text"
-                          color="primary"
-                          onClick={() => openReview(entry.id)}
-                          sx={{ fontWeight: 600, borderRadius: "6px", fontSize: "0.75rem" }}
-                        >
-                          Review
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <ProgressSessionRow key={entry.id} entry={entry} onReview={openReview} />
                   ))}
                 </TableBody>
               </Table>
