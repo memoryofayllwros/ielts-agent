@@ -348,3 +348,77 @@ class ResultDetail(BaseModel):
     evaluation: Optional[Dict[str, Any]] = None
     speaking_task: Optional[Dict[str, Any]] = None
     writing_task_summary: Optional[Dict[str, Any]] = None
+
+
+# ── Lesson videos ─────────────────────────────────────────────────────────────
+
+class LessonClipPlayback(BaseModel):
+    index: int
+    type: str
+    url: str
+    duration_sec: Optional[float] = None
+    size_bytes: Optional[int] = None
+
+
+class LessonSummary(BaseModel):
+    id: str
+    module: str
+    skill_id: str
+    title: Optional[str] = None
+    status: str
+    playback_url: Optional[str] = None
+    clip_playback: List[LessonClipPlayback] = Field(default_factory=list)
+    storage_backend: Optional[str] = None
+    gridfs_file_id: Optional[str] = None
+    duration_sec: Optional[float] = None
+    size_bytes: Optional[int] = None
+    error: Optional[str] = None
+    why_this_lesson: Optional[Dict[str, Any]] = None
+    lesson_kind: str = "skill_explainer"
+    curriculum: Dict[str, Any] = Field(default_factory=dict)
+    evaluation_hook: Optional[Dict[str, Any]] = None
+    weakness_vector_snapshot: Optional[Dict[str, Any]] = None
+    graph_prerequisite_lesson_ids: List[str] = Field(default_factory=list)
+    graph_next_lesson_ids: List[str] = Field(default_factory=list)
+    comprehension_submitted: bool = False
+    roleplay_submitted: bool = False
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class LessonDetail(LessonSummary):
+    slides_json: Optional[List[Dict[str, Any]]] = None
+    narration: Optional[str] = None
+    content: Optional[Dict[str, Any]] = None
+    comprehension_answers: Optional[Dict[str, Any]] = None
+    comprehension_results: Optional[Dict[str, Any]] = None
+    roleplay_evaluation: Optional[Dict[str, Any]] = None
+
+
+class LessonsListResponse(BaseModel):
+    lessons: List[LessonSummary]
+
+
+class LessonGenerateRequest(BaseModel):
+    skill_id: Optional[str] = None
+    module: Optional[str] = None
+    lesson_kind: Optional[str] = None
+
+
+class LessonGenerateResponse(BaseModel):
+    lesson_id: str
+    status: str
+
+
+class LessonCompilePlanResponse(BaseModel):
+    module: str
+    weakness_vector: Dict[str, Any]
+    steps: List[Dict[str, Any]]
+
+
+class LessonComprehensionSubmit(BaseModel):
+    answers: Dict[str, str] = Field(default_factory=dict)
+
+
+class LessonRoleplaySubmit(BaseModel):
+    transcript: str = ""

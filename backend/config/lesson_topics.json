@@ -1,0 +1,64 @@
+{
+  "topics": [
+    {
+      "id": "education",
+      "label": "Education",
+      "scenarios": ["university_library", "group_assignment", "lecture_hall", "exam_preparation"]
+    },
+    {
+      "id": "work",
+      "label": "Work",
+      "scenarios": ["job_interview", "team_meeting", "email_clarification", "office_small_talk"]
+    },
+    {
+      "id": "travel",
+      "label": "Travel",
+      "scenarios": ["airport_checkin", "hotel_checkin", "lost_luggage", "train_delay"]
+    },
+    {
+      "id": "technology",
+      "label": "Technology",
+      "scenarios": ["tech_support_call", "app_update", "online_security", "remote_work_setup"]
+    },
+    {
+      "id": "environment",
+      "label": "Environment",
+      "scenarios": ["recycling_centre", "local_campaign", "weather_extreme", "green_transport"]
+    },
+    {
+      "id": "health",
+      "label": "Health",
+      "scenarios": ["pharmacy_visit", "gym_induction", "doctor_appointment", "mental_wellbeing_chat"]
+    },
+    {
+      "id": "culture",
+      "label": "Culture",
+      "scenarios": ["museum_visit", "festival_planning", "traditional_event", "language_exchange"]
+    },
+    {
+      "id": "city_life",
+      "label": "City life",
+      "scenarios": ["noisy_neighbour", "public_transport", "community_event", "renting_flat"]
+    },
+    {
+      "id": "food",
+      "label": "Food",
+      "scenarios": ["restaurant_reservation", "dietary_requirements", "cooking_class", "street_food_tour"]
+    },
+    {
+      "id": "shopping",
+      "label": "Shopping",
+      "scenarios": ["returns_desk", "online_order_issue", "bargaining_polite", "gift_advice"]
+    },
+    {
+      "id": "media",
+      "label": "Media",
+      "scenarios": ["news_discussion", "podcast_recommendation", "social_media_balance", "film_review"]
+    },
+    {
+      "id": "transportation",
+      "label": "Transportation",
+      "scenarios": ["bike_share", "parking_fine", "carpool_arrangement", "airport_transfer"]
+    }
+  ]
+}

@@ -1,10 +1,12 @@
 import os
 import re
 import uuid
+from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorGridFSBucket
 
 _client: Optional[AsyncIOMotorClient] = None
 _db: Optional[AsyncIOMotorDatabase] = None
@@ -34,6 +36,19 @@ async def init_db():
         [("skill", 1), ("difficulty", 1), ("active", 1), ("writing_task_type", 1)]
     )
     await _db.sessions.create_index([("user_id", 1), ("skill", 1), ("source_template_id", 1)])
+    await _db.lesson_videos.create_index([("user_id", 1), ("module", 1)])
+    await _db.lesson_videos.create_index([("user_id", 1), ("skill_id", 1)])
+    await _db.lesson_videos.create_index([("status", 1)])
+    await _db.lesson_videos.create_index([("user_id", 1), ("created_at", -1)])
+    await _db.lesson_videos.create_index([("lesson_kind", 1)])
+    await _db.user_weakness_vectors.create_index("user_id", unique=True)
+
+
+LESSON_GRIDFS_BUCKET = "lesson_mp4"
+
+
+def lesson_gridfs_bucket() -> AsyncIOMotorGridFSBucket:
+    return AsyncIOMotorGridFSBucket(_db_handle(), bucket_name=LESSON_GRIDFS_BUCKET)
 
 
 async def close_db():
@@ -486,3 +501,138 @@ async def get_vocab_result(result_id: str, user_id: str) -> Optional[dict]:
             "level_breakdown", "item_results",
         )},
     }
+
+
+# ── Lesson videos (metadata + GridFS binary) ─────────────────────────────────
+
+async def insert_lesson_job(
+    user_id: str,
+    module: str,
+    skill_id: str,
+    *,
+    title: str = "",
+    why_this_lesson: Optional[dict[str, Any]] = None,
+    lesson_kind: str = "skill_explainer",
+    curriculum: Optional[dict[str, Any]] = None,
+    content: Optional[dict[str, Any]] = None,
+    evaluation_hook: Optional[dict[str, Any]] = None,
+    weakness_vector_snapshot: Optional[dict[str, Any]] = None,
+    clips: Optional[list[dict[str, Any]]] = None,
+) -> str:
+    lesson_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    doc: dict[str, Any] = {
+        "_id": lesson_id,
+        "user_id": user_id,
+        "module": module,
+        "skill_id": skill_id,
+        "title": title or skill_id,
+        "status": "queued",
+        "storage_backend": "gridfs",
+        "gridfs_file_id": None,
+        "video_url": None,
+        "slides_json": None,
+        "narration": None,
+        "duration_sec": None,
+        "size_bytes": None,
+        "error": None,
+        "why_this_lesson": why_this_lesson,
+        "lesson_kind": lesson_kind or "skill_explainer",
+        "curriculum": curriculum or {},
+        "content": content or {},
+        "evaluation_hook": evaluation_hook or {"type": "none", "target_micro_skill": ""},
+        "weakness_vector_snapshot": weakness_vector_snapshot or {},
+        "clips": clips or [],
+        "graph_prerequisite_lesson_ids": [],
+        "graph_next_lesson_ids": [],
+        "comprehension_submitted": False,
+        "comprehension_answers": {},
+        "roleplay_submitted": False,
+        "roleplay_evaluation": None,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await _db_handle().lesson_videos.insert_one(doc)
+    return lesson_id
+
+
+async def count_recent_lesson_jobs_for_user(user_id: str, *, since_iso: str) -> int:
+    return int(
+        await _db_handle().lesson_videos.count_documents(
+            {"user_id": user_id, "created_at": {"$gte": since_iso}},
+        )
+    )
+
+
+async def upsert_user_weakness_vector(user_id: str, vector: dict[str, Any]) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    await _db_handle().user_weakness_vectors.update_one(
+        {"user_id": user_id},
+        {"$set": {"user_id": user_id, "vector": vector, "updated_at": now}},
+        upsert=True,
+    )
+
+
+async def get_user_weakness_vector(user_id: str) -> Optional[dict[str, Any]]:
+    doc = await _db_handle().user_weakness_vectors.find_one({"user_id": user_id})
+    if not doc:
+        return None
+    return dict(doc.get("vector") or {})
+
+
+async def get_lesson(lesson_id: str, user_id: str) -> Optional[dict]:
+    doc = await _db_handle().lesson_videos.find_one({"_id": lesson_id, "user_id": user_id})
+    return doc
+
+
+async def list_lessons_for_user(
+    user_id: str,
+    *,
+    module: Optional[str] = None,
+    limit: int = 50,
+) -> list[dict]:
+    q: dict[str, Any] = {"user_id": user_id}
+    if module:
+        q["module"] = module
+    cursor = (
+        _db_handle()
+        .lesson_videos.find(q)
+        .sort("created_at", -1)
+        .limit(max(1, min(limit, 100)))
+    )
+    return [doc async for doc in cursor]
+
+
+async def update_lesson(lesson_id: str, user_id: str, patch: dict[str, Any]) -> bool:
+    patch = {**patch, "updated_at": datetime.now(timezone.utc).isoformat()}
+    res = await _db_handle().lesson_videos.update_one(
+        {"_id": lesson_id, "user_id": user_id},
+        {"$set": patch},
+    )
+    return res.matched_count > 0
+
+
+async def gridfs_upload_lesson_mp4(
+    filename: str,
+    data: bytes,
+    *,
+    metadata: Optional[dict[str, Any]] = None,
+) -> ObjectId:
+    bucket = lesson_gridfs_bucket()
+    meta: dict[str, Any] = {"contentType": "video/mp4", **(metadata or {})}
+    return await bucket.upload_from_stream(filename, BytesIO(data), metadata=meta)
+
+
+async def gridfs_delete_file(file_id: ObjectId) -> None:
+    bucket = lesson_gridfs_bucket()
+    try:
+        await bucket.delete(file_id)
+    except Exception:
+        pass
+
+
+async def gridfs_read_mp4_bytes(file_id: ObjectId) -> bytes:
+    bucket = lesson_gridfs_bucket()
+    buf = BytesIO()
+    await bucket.download_to_stream(file_id, buf)
+    return buf.getvalue()

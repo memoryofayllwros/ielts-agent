@@ -1,0 +1,12 @@
+{
+  "comment": "Directed edges: mastering 'from' is a useful prerequisite before emphasising 'to' in curriculum ordering.",
+  "edges": [
+    {"from": "S3.1_vocabulary_range", "to": "S3.2_paraphrase_usage"},
+    {"from": "S4.1_grammar_accuracy", "to": "S4.2_sentence_complexity"},
+    {"from": "S1.2_hesitation_control", "to": "S1.1_speech_continuity"},
+    {"from": "W3.1_vocabulary_range", "to": "W3.2_paraphrase_usage"},
+    {"from": "W4.1_grammar_accuracy", "to": "W4.2_sentence_complexity"},
+    {"from": "R1.1_skimming_main_idea", "to": "R1.3_paragraph_topic_identification"},
+    {"from": "L2.1_specific_detail_capture", "to": "L3.1_paraphrase_recognition"}
+  ]
+}

@@ -5,60 +5,10 @@ import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Grid from "@mui/material/Grid";
-import MenuBook from "@mui/icons-material/MenuBook";
-import Headphones from "@mui/icons-material/Headphones";
-import EditNote from "@mui/icons-material/EditNote";
-import Mic from "@mui/icons-material/Mic";
 import DashboardNavbar from "components/Navbars/DashboardNavbar";
 import NextBestPracticeCard from "components/LearningLoop/NextBestPracticeCard";
 import { dashboardPage } from "utils/pageLayout";
-
-const SKILLS = [
-  {
-    key: "reading",
-    title: "Reading",
-    desc: "Passages, gap-fill, multiple choice, exam style.",
-    route: "/practice/reading",
-    Icon: MenuBook,
-    accent: "primary",
-    iconColor: "primary.main",
-    tint: "rgba(13, 148, 136, 0.08)",
-    border: "rgba(13, 148, 136, 0.35)",
-  },
-  {
-    key: "listening",
-    title: "Listening",
-    desc: "Audio, questions, script when you need it.",
-    route: "/practice/listening",
-    Icon: Headphones,
-    accent: "primary",
-    iconColor: "primary.dark",
-    tint: "rgba(14, 116, 144, 0.08)",
-    border: "rgba(14, 116, 144, 0.35)",
-  },
-  {
-    key: "writing",
-    title: "Writing",
-    desc: "Task 1 or 2, rubric-style feedback.",
-    route: "/practice/writing",
-    Icon: EditNote,
-    accent: "warning",
-    iconColor: "warning.dark",
-    tint: "rgba(217, 119, 6, 0.1)",
-    border: "rgba(217, 119, 6, 0.4)",
-  },
-  {
-    key: "speaking",
-    title: "Speaking",
-    desc: "Part 2 cue card, record or dictate.",
-    route: "/practice/speaking",
-    Icon: Mic,
-    accent: "secondary",
-    iconColor: "secondary.main",
-    tint: "rgba(100, 116, 139, 0.1)",
-    border: "rgba(100, 116, 139, 0.35)",
-  },
-];
+import { IELTS_PAPERS } from "constants/ieltsPapers";
 
 export default function PracticeHub() {
   const navigate = useNavigate();
@@ -204,7 +154,7 @@ export default function PracticeHub() {
       </Typography>
 
       <Grid container spacing={{ xs: 2, sm: 2.5 }} sx={{ width: 1, minWidth: 0 }}>
-        {SKILLS.map((s) => {
+        {IELTS_PAPERS.map((s) => {
           const IconComp = s.Icon;
           return (
             <Grid item xs={12} sm={6} key={s.key} sx={{ minWidth: 0 }}>
@@ -282,7 +232,7 @@ export default function PracticeHub() {
                   <Button
                     variant="contained"
                     color={s.accent}
-                    onClick={() => navigate(s.route)}
+                    onClick={() => navigate(s.practiceRoute)}
                     fullWidth
                     sx={{
                       borderRadius: "10px",

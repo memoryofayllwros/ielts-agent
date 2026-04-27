@@ -387,7 +387,7 @@ API Gateway (FastAPI)
                 ▼
         Data layer
                 │
-                ├── MongoDB (sessions, results, users)
+                ├── MongoDB (sessions, results, users, lesson_videos + GridFS)
                 ├── Skill graph (config / store)
                 └── Analytics store (aggregates, rollups)
 ```
@@ -415,6 +415,16 @@ API Gateway
 
 - Heavy AI calls: **async task queue** (e.g. Celery + Redis, or managed queues).
 - **Observability** (production): **LLM** token use and latency; **API** latency and errors; **queue** depth / backlog.
+
+### 5.4 Lesson videos (local / ops)
+
+The **Lessons** feature builds short tutorials from weak micro-skills: an LLM produces a **lesson plan** (title, slide outline, narration script), then **OpenRouter’s video API** generates the actual file using the model set by **`OPENROUTER_LESSON_VIDEO_MODEL`** in `.env` (e.g. **`openai/sora-2-pro`** for Sora 2 on OpenRouter’s unified `/videos` API). The finished bytes are stored in **MongoDB GridFS** (`lesson_mp4` bucket); metadata lives in **`lesson_videos`**.
+
+- **OpenRouter**: requires **`OPENROUTER_API_KEY`**. Video calls use `POST /api/v1/videos`, poll `GET /api/v1/videos/{jobId}`, then `GET /api/v1/videos/{jobId}/content` (same host as chat: `https://openrouter.ai/api/v1/...`).
+- **Video model (required)**: set **`OPENROUTER_LESSON_VIDEO_MODEL`** in `.env` to a slug from `GET https://openrouter.ai/api/v1/videos/models` (see **`.env.example`**). For Sora, **`OPENROUTER_LESSON_VIDEO_DURATION`** is snapped to **4, 8, 12, 16, or 20** seconds (see OpenRouter model caps). Also: **`OPENROUTER_LESSON_VIDEO_ASPECT`**, **`OPENROUTER_LESSON_VIDEO_RESOLUTION`**, **`OPENROUTER_LESSON_VIDEO_AUDIO`** (`true`/`false`), and **`OPENROUTER_LESSON_VIDEO_POLL_SEC`** (default **3600** — Sora jobs can run for many minutes).
+- **ffmpeg** is **not** required for this path (no local mux).
+- **Jobs (MVP)** run via FastAPI **`BackgroundTasks`** in the same process as `uvicorn`. Restarts drop in-flight jobs; for production durability, run the same pipeline behind a **Redis** worker (RQ, Celery, Dramatiq, etc.).
+- **API**: `GET/POST /api/lessons`, `GET /api/lessons/{id}/video` (auth required; same pattern as other Bearer routes).
 
 ---
 

@@ -20,12 +20,13 @@ import DiagnosticPage from "pages/DiagnosticPage";
 import VocabTestPage from "pages/VocabTestPage";
 import SkillMapPage from "pages/SkillMapPage";
 import LessonsPage from "pages/LessonsPage";
+import LessonsPaperPage from "pages/LessonsPaperPage";
 import ProfilePage from "pages/ProfilePage";
 
 const NAV_ROUTES = [
+  { key: "skillmap", name: "Skill map", icon: "hub", route: "/learning/skill-map", end: true },
   { key: "practice", name: "Practice", icon: "school", route: "/practice", end: true },
   { key: "lessons", name: "Lessons", icon: "menu_book", route: "/lessons" },
-  { key: "skillmap", name: "Skill map", icon: "hub", route: "/learning/skill-map" },
   { key: "progress", name: "Progress", icon: "bar_chart", route: "/progress" },
 ];
 
@@ -63,7 +64,7 @@ export default function App() {
       <AppLayout />
       <Routes>
         <Route path="/login" element={<AuthPage />} />
-        <Route path="/" element={<Navigate to="/practice" replace />} />
+        <Route path="/" element={<Navigate to="/learning/skill-map" replace />} />
         <Route
           path="/practice"
           element={
@@ -173,6 +174,18 @@ export default function App() {
           }
         />
         <Route
+          path="/lessons/:paper"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <MainContent>
+                  <LessonsPaperPage />
+                </MainContent>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/learning/skill-map"
           element={
             <ProtectedRoute>
@@ -196,7 +209,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/practice" replace />} />
+        <Route path="*" element={<Navigate to="/learning/skill-map" replace />} />
       </Routes>
     </ThemeProvider>
   );

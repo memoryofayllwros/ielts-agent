@@ -16,7 +16,7 @@ export default function AuthPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/practice";
+  const from = location.state?.from?.pathname || "/learning/skill-map";
 
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);

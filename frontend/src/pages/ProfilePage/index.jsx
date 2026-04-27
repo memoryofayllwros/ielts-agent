@@ -281,16 +281,9 @@ export default function ProfilePage() {
           onSubmit={handleSave}
           sx={{ p: { xs: 2.25, sm: 3 }, display: "flex", flexDirection: "column", gap: 2.5 }}
         >
-          <Box>
-            <Typography component="h2" variant="h6" fontWeight={800} sx={{ letterSpacing: "-0.01em" }}>
-              Your details
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.65, maxWidth: "62ch" }}>
-              A real IELTS test report gives you four component scores (Listening, Reading, Writing, Speaking) and an
-              overall band. Set goals and past results below, overall and/or by skill, then Save. Bands use half points
-              from 4 to 9. Nothing here is an official record.
-            </Typography>
-          </Box>
+          <Typography component="h2" variant="h6" fontWeight={800} sx={{ letterSpacing: "-0.01em" }}>
+            Your details
+          </Typography>
 
           {loading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>

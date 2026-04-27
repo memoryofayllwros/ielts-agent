@@ -2,18 +2,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-
-_BACKEND_DIR = Path(__file__).resolve().parent
-_REPO_ROOT = _BACKEND_DIR.parent
-load_dotenv(_REPO_ROOT / ".env")
-load_dotenv(_BACKEND_DIR / ".env")
-
-from fastapi import FastAPI, HTTPException, Depends, File, Form, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, File, Form, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 
+from bson import ObjectId
 from models import (
     RegisterRequest, LoginRequest, AuthResponse,
     UserProfileResponse, UserProfileUpdate,
@@ -23,7 +17,12 @@ from models import (
     VocabSubmitRequest, VocabResult, VocabHistoryEntry,
     SkillMapEntry, SkillMapResponse, NextStepResponse, WeeklyReportResponse,
     JourneyPoint, ModuleOverviewEntry,
+    LessonGenerateRequest, LessonGenerateResponse, LessonsListResponse,
+    LessonSummary, LessonDetail,
+    LessonCompilePlanResponse,
+    LessonComprehensionSubmit, LessonRoleplaySubmit,
 )
+
 from ai import generate_practice_session, generate_diagnostic_reading_session
 from diagnostic import (
     average_diagnostic_band,
@@ -47,6 +46,9 @@ from database import (
     save_vocab_session, get_vocab_session,
     save_vocab_result, get_vocab_history, get_vocab_result,
     aggregate_skill_accuracy_for_user,
+    insert_lesson_job, get_lesson, list_lessons_for_user, gridfs_read_mp4_bytes,
+    upsert_user_weakness_vector,
+    update_lesson,
 )
 from learning import (
     compare_weekly_skills,
@@ -69,8 +71,31 @@ from skills_taxonomy import (
     skill_ids_for_module,
     get_skill_meta,
     focus_practice_bullets_for_skill,
+    is_valid_skill_id,
 )
+from lesson_selection import (
+    build_why_this_lesson,
+    module_for_skill_id,
+    select_weak_skills_for_user,
+)
+from lesson_pipeline import lesson_doc_to_api_row, run_lesson_pipeline
+from lesson_weakness import (
+    refresh_stored_weakness_vector,
+    select_skill_weighted,
+    merge_evaluation_into_speaking_weakness,
+)
+from lesson_topics_pool import pick_topic_scenario
+from lesson_graph_ops import link_new_lesson_after_previous
+from lesson_scale import check_lesson_generation_rate_limit
+from curriculum_compiler import compile_mini_course_plan
 from vocab_agent import generate_vocab_test, estimate_level
+
+from dotenv import load_dotenv
+
+_BACKEND_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _BACKEND_DIR.parent
+load_dotenv(_REPO_ROOT / ".env")
+load_dotenv(_BACKEND_DIR / ".env")
 
 
 @asynccontextmanager
@@ -836,6 +861,280 @@ async def learning_weekly_report(user_id: str = Depends(get_current_user_id)):
         biggest_improvement=imp,
         still_weak=weak,
     )
+
+
+# ── Lesson videos (weakness-driven) ───────────────────────────────────────────
+
+ALLOWED_LESSON_KINDS = frozenset(
+    {
+        "skill_explainer",
+        "legacy_motion",
+        "speaking_scenario",
+        "listening_context",
+        "listening_to_speaking",
+    }
+)
+
+
+def _difficulty_slug_from_band(band: Optional[float]) -> str:
+    if band is None:
+        return "band6"
+    if band < 5.5:
+        return "band5"
+    if band < 6.5:
+        return "band6"
+    if band < 7.5:
+        return "band7"
+    return "band8"
+
+
+def _comprehension_match(student: str, hint: str) -> bool:
+    s = (student or "").strip().lower()
+    h = (hint or "").strip().lower()
+    if not s or not h:
+        return False
+    if s in h or h in s:
+        return True
+    htoks = [t for t in h.replace(",", " ").split() if len(t) > 2]
+    return any(t in s for t in htoks)
+
+
+@app.get("/api/lessons", response_model=LessonsListResponse)
+async def lessons_list(
+    user_id: str = Depends(get_current_user_id),
+    module: Optional[str] = None,
+):
+    if module and module not in ("reading", "listening", "writing", "speaking"):
+        raise HTTPException(status_code=400, detail="Invalid module")
+    docs = await list_lessons_for_user(user_id, module=module, limit=50)
+    rows = [LessonSummary(**lesson_doc_to_api_row(d)) for d in docs]
+    return LessonsListResponse(lessons=rows)
+
+
+@app.get("/api/lessons/compile-plan", response_model=LessonCompilePlanResponse)
+async def lesson_compile_plan(
+    user_id: str = Depends(get_current_user_id),
+    module: str = "speaking",
+    max_steps: int = 5,
+):
+    if module not in ("reading", "listening", "writing", "speaking"):
+        raise HTTPException(status_code=400, detail="Invalid module")
+    plan = await compile_mini_course_plan(user_id, module, max_steps=max(1, min(max_steps, 20)))
+    return LessonCompilePlanResponse(
+        module=str(plan.get("module") or module),
+        weakness_vector=dict(plan.get("weakness_vector") or {}),
+        steps=list(plan.get("steps") or []),
+    )
+
+
+@app.get("/api/lessons/{lesson_id}", response_model=LessonDetail)
+async def lesson_detail(lesson_id: str, user_id: str = Depends(get_current_user_id)):
+    doc = await get_lesson(lesson_id, user_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    d = lesson_doc_to_api_row(doc)
+    d["slides_json"] = doc.get("slides_json")
+    d["narration"] = doc.get("narration")
+    d["content"] = doc.get("content")
+    d["comprehension_answers"] = doc.get("comprehension_answers")
+    d["comprehension_results"] = doc.get("comprehension_results")
+    d["roleplay_evaluation"] = doc.get("roleplay_evaluation")
+    return LessonDetail(**d)
+
+
+@app.get("/api/lessons/{lesson_id}/video")
+async def lesson_video_stream(lesson_id: str, user_id: str = Depends(get_current_user_id)):
+    doc = await get_lesson(lesson_id, user_id)
+    if not doc or doc.get("status") != "ready":
+        raise HTTPException(status_code=404, detail="Video not available")
+    gid = doc.get("gridfs_file_id")
+    if not gid:
+        raise HTTPException(status_code=404, detail="Video not stored")
+    oid = ObjectId(str(gid)) if not isinstance(gid, ObjectId) else gid
+    body = await gridfs_read_mp4_bytes(oid)
+    return Response(content=body, media_type="video/mp4")
+
+
+@app.get("/api/lessons/{lesson_id}/clips/{clip_index}/video")
+async def lesson_clip_video_stream(
+    lesson_id: str,
+    clip_index: int,
+    user_id: str = Depends(get_current_user_id),
+):
+    doc = await get_lesson(lesson_id, user_id)
+    if not doc or doc.get("status") != "ready":
+        raise HTTPException(status_code=404, detail="Video not available")
+    clips = doc.get("clips") or []
+    if not isinstance(clips, list) or clip_index < 0 or clip_index >= len(clips):
+        raise HTTPException(status_code=404, detail="Clip not found")
+    c = clips[clip_index]
+    if not isinstance(c, dict):
+        raise HTTPException(status_code=404, detail="Clip not found")
+    gid = c.get("gridfs_file_id")
+    if not gid:
+        raise HTTPException(status_code=404, detail="Video not stored")
+    oid = ObjectId(str(gid)) if not isinstance(gid, ObjectId) else gid
+    body = await gridfs_read_mp4_bytes(oid)
+    return Response(content=body, media_type="video/mp4")
+
+
+@app.post("/api/lessons/{lesson_id}/comprehension", response_model=dict)
+async def lesson_submit_comprehension(
+    lesson_id: str,
+    req: LessonComprehensionSubmit,
+    user_id: str = Depends(get_current_user_id),
+):
+    doc = await get_lesson(lesson_id, user_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    content = doc.get("content") or {}
+    questions = content.get("comprehension_questions") or []
+    if not isinstance(questions, list) or not questions:
+        raise HTTPException(status_code=400, detail="No comprehension questions for this lesson")
+    results: dict[str, bool] = {}
+    for q in questions:
+        if not isinstance(q, dict):
+            continue
+        qid = str(q.get("id") or "")
+        hint = str(q.get("answer_hint") or "")
+        ans = (req.answers or {}).get(qid, "")
+        results[qid] = _comprehension_match(str(ans), hint)
+    await update_lesson(
+        lesson_id,
+        user_id,
+        {
+            "comprehension_submitted": True,
+            "comprehension_answers": dict(req.answers or {}),
+            "comprehension_results": results,
+        },
+    )
+    return {"ok": True, "results": results}
+
+
+@app.post("/api/lessons/{lesson_id}/roleplay-submit", response_model=dict)
+async def lesson_submit_roleplay(
+    lesson_id: str,
+    req: LessonRoleplaySubmit,
+    user_id: str = Depends(get_current_user_id),
+):
+    doc = await get_lesson(lesson_id, user_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    hook = doc.get("evaluation_hook") or {}
+    if hook.get("type") not in ("speaking_response",):
+        raise HTTPException(status_code=400, detail="This lesson does not accept a speaking roleplay submission")
+    text = (req.transcript or "").strip()
+    if len(text) < 5:
+        raise HTTPException(status_code=400, detail="Transcript too short")
+    content = doc.get("content") or {}
+    topic = str((doc.get("curriculum") or {}).get("topic") or "Lesson roleplay")
+    prompt = str(content.get("roleplay_prompt") or content.get("practice_prompt") or "Respond naturally as the assigned role.")
+    task = {
+        "part": 1,
+        "topic": topic,
+        "prompt": prompt,
+        "bullet_points": content.get("highlighted_phrases") or [],
+    }
+    try:
+        evaluation = await evaluate_speaking(task, text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+    wv = await refresh_stored_weakness_vector(user_id)
+    merged = merge_evaluation_into_speaking_weakness(wv, evaluation)
+    await upsert_user_weakness_vector(user_id, merged)
+    await update_lesson(
+        lesson_id,
+        user_id,
+        {"roleplay_submitted": True, "roleplay_evaluation": evaluation},
+    )
+    return {"ok": True, "evaluation": evaluation}
+
+
+@app.post("/api/lessons/generate", response_model=LessonGenerateResponse)
+async def lesson_generate(
+    req: LessonGenerateRequest,
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user_id),
+):
+    ok, msg = await check_lesson_generation_rate_limit(user_id)
+    if not ok:
+        raise HTTPException(status_code=429, detail=msg)
+
+    wv_snap = await refresh_stored_weakness_vector(user_id)
+
+    modules = ("reading", "listening", "writing", "speaking")
+    skill_id: Optional[str] = (req.skill_id or "").strip() or None
+    mod_in = (req.module or "").strip() or None
+
+    if skill_id:
+        use_mod = module_for_skill_id(skill_id)
+        if not use_mod or use_mod not in modules:
+            raise HTTPException(status_code=400, detail="Invalid skill_id prefix")
+        if not is_valid_skill_id(skill_id, use_mod):
+            raise HTTPException(status_code=400, detail="Unknown skill_id for module")
+        if mod_in and mod_in != use_mod:
+            raise HTTPException(status_code=400, detail="module does not match skill_id")
+        chosen_skill = skill_id
+        use_module = use_mod
+    elif mod_in:
+        if mod_in not in modules:
+            raise HTTPException(status_code=400, detail="Invalid module")
+        chosen_skill = await select_skill_weighted(user_id, mod_in, weakness_vector=wv_snap, limit=12)
+        use_module = mod_in
+    else:
+        raise HTTPException(status_code=400, detail="Provide skill_id and/or module")
+
+    user = await get_user_by_id(user_id)
+    band = average_diagnostic_band(user) if user else None
+    diff = _difficulty_slug_from_band(band)
+    topic_id, scenario_id, _topic_label = pick_topic_scenario(chosen_skill, use_module, seed=user_id)
+
+    lk_in = (req.lesson_kind or "").strip() or None
+    if lk_in:
+        if lk_in not in ALLOWED_LESSON_KINDS:
+            raise HTTPException(status_code=400, detail="Invalid lesson_kind")
+        lesson_kind = lk_in
+    else:
+        if use_module == "speaking":
+            lesson_kind = "speaking_scenario"
+        elif use_module == "listening":
+            lesson_kind = "listening_context"
+        else:
+            lesson_kind = "skill_explainer"
+
+    curriculum = {
+        "skill": use_module,
+        "micro_skill": chosen_skill,
+        "topic": topic_id,
+        "scenario": scenario_id,
+        "difficulty": diff,
+        "band_target": band,
+        "accent": "british",
+    }
+    eval_hook = (
+        {"type": "speaking_response", "target_micro_skill": chosen_skill}
+        if lesson_kind in ("speaking_scenario", "listening_to_speaking")
+        else {"type": "comprehension_only", "target_micro_skill": chosen_skill}
+        if lesson_kind == "listening_context"
+        else {"type": "none", "target_micro_skill": chosen_skill}
+    )
+
+    why = await build_why_this_lesson(user_id, chosen_skill)
+    title_seed = get_skill_label(chosen_skill)
+    lesson_id = await insert_lesson_job(
+        user_id,
+        use_module,
+        chosen_skill,
+        title=title_seed,
+        why_this_lesson=why,
+        lesson_kind=lesson_kind,
+        curriculum=curriculum,
+        evaluation_hook=eval_hook,
+        weakness_vector_snapshot=wv_snap,
+    )
+    await link_new_lesson_after_previous(user_id, use_module, chosen_skill, lesson_id)
+    background_tasks.add_task(run_lesson_pipeline, lesson_id, user_id)
+    return LessonGenerateResponse(lesson_id=lesson_id, status="queued")
 
 
 def _score_question(qtype: str, correct: list, user: list) -> tuple[float, float]:

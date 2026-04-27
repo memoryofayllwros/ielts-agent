@@ -202,6 +202,85 @@ export async function fetchWeeklyReport() {
   return request("/learning/weekly-report", { method: "GET" });
 }
 
+/** @param {string|null} [module] reading|listening|writing|speaking */
+export async function fetchLessons(module = null) {
+  const q = module ? `?module=${encodeURIComponent(module)}` : "";
+  return request(`/lessons${q}`);
+}
+
+/** @param {{ module?: string, max_steps?: number }} [opts] */
+export async function fetchLessonCompilePlan(opts = {}) {
+  const p = new URLSearchParams();
+  if (opts.module) p.set("module", opts.module);
+  if (opts.max_steps != null) p.set("max_steps", String(opts.max_steps));
+  const q = p.toString() ? `?${p.toString()}` : "";
+  return request(`/lessons/compile-plan${q}`);
+}
+
+/** @param {{ skill_id?: string, module?: string, lesson_kind?: string }} [opts] */
+export async function requestLessonGenerate(opts = {}) {
+  const body = {};
+  if (opts.skill_id) body.skill_id = opts.skill_id;
+  if (opts.module) body.module = opts.module;
+  if (opts.lesson_kind) body.lesson_kind = opts.lesson_kind;
+  return request("/lessons/generate", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchLessonDetail(lessonId) {
+  return request(`/lessons/${encodeURIComponent(lessonId)}`);
+}
+
+async function fetchLessonVideoUrl(urlPath) {
+  const token = getToken();
+  const path = urlPath.startsWith("/api") ? urlPath : `/api${urlPath.startsWith("/") ? urlPath : `/${urlPath}`}`;
+  const res = await fetch(path, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401 && token) {
+    localStorage.removeItem(SESSION_KEY);
+    window.location.reload();
+    throw new Error("Session expired");
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(messageFromDetail(data, `Video failed: ${res.status}`));
+  }
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("video") && !ct.includes("octet-stream")) {
+    const t = await res.text();
+    throw new Error(t || "Unexpected video response");
+  }
+  return res.blob();
+}
+
+export async function fetchLessonVideoBlob(lessonId) {
+  return fetchLessonVideoUrl(`/lessons/${encodeURIComponent(lessonId)}/video`);
+}
+
+/** @param {number} clipIndex */
+export async function fetchLessonClipVideoBlob(lessonId, clipIndex) {
+  return fetchLessonVideoUrl(`/lessons/${encodeURIComponent(lessonId)}/clips/${clipIndex}/video`);
+}
+
+/** @param {string} lessonId @param {Record<string, string>} answers */
+export async function submitLessonComprehension(lessonId, answers) {
+  return request(`/lessons/${encodeURIComponent(lessonId)}/comprehension`, {
+    method: "POST",
+    body: JSON.stringify({ answers }),
+  });
+}
+
+/** @param {string} lessonId @param {string} transcript */
+export async function submitLessonRoleplay(lessonId, transcript) {
+  return request(`/lessons/${encodeURIComponent(lessonId)}/roleplay-submit`, {
+    method: "POST",
+    body: JSON.stringify({ transcript }),
+  });
+}
+
 export async function fetchResultDetail(resultId) {
   return request(`/results/${resultId}`);
 }
