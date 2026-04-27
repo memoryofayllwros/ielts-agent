@@ -104,7 +104,7 @@ export default function DiagnosticPage() {
     return (
       <Box>
         <DashboardNavbar title="Baseline diagnostic" />
-        <Card sx={{ borderRadius: "16px", maxWidth: 560, mx: "auto", mt: 2 }}>
+        <Card sx={{ borderRadius: "16px", width: "100%", mt: 2 }}>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight={700} gutterBottom>Diagnostic complete</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -131,7 +131,7 @@ export default function DiagnosticPage() {
     return (
       <Box>
         <DashboardNavbar title="Baseline diagnostic" />
-        <Card sx={{ borderRadius: "16px", maxWidth: 640, mx: "auto", mt: 1 }}>
+        <Card sx={{ borderRadius: "16px", width: "100%", mt: 1 }}>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight={700} gutterBottom>Baseline assessment</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -157,7 +157,7 @@ export default function DiagnosticPage() {
     return (
       <Box>
         <DashboardNavbar title="Baseline diagnostic" />
-        <Card sx={{ borderRadius: "16px", maxWidth: 560, mx: "auto", mt: 2 }}>
+        <Card sx={{ borderRadius: "16px", width: "100%", mt: 2 }}>
           <CardContent sx={{ p: 4, textAlign: "center" }}>
             <Typography variant="h5" fontWeight={700} gutterBottom>All sections submitted</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

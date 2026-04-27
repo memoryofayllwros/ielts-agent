@@ -68,7 +68,7 @@ function ReviewPassage({ passage, title = "Passage" }) {
         >
           {title}
         </Typography>
-        <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>
+        <Typography variant="body1" sx={{ lineHeight: 1.9, color: "text.primary", whiteSpace: "pre-wrap" }}>
           {passage}
         </Typography>
       </CardContent>
@@ -119,7 +119,7 @@ function ReviewQuestion({ qr, index }) {
     if (!qr.passage_with_blanks) return null;
     const parts = qr.passage_with_blanks.split(/(\[BLANK_\d+\])/);
     return (
-      <Typography variant="body1" sx={{ lineHeight: 2.2, color: "#344767" }} component="div">
+      <Typography variant="body1" sx={{ lineHeight: 2.2, color: "text.primary" }} component="div">
         {parts.map((part, i) => {
           const match = part.match(/\[BLANK_(\d+)\]/);
           if (match) {
@@ -250,7 +250,7 @@ function ReviewQuestion({ qr, index }) {
               {qr.type === "mc_single" ? "Multiple Choice — Single Answer" : "Multiple Choice — Multiple Answers"}
             </Typography>
             {qr.question_text && (
-              <Typography variant="body1" sx={{ mb: 2, color: "#344767", fontWeight: 500 }}>
+              <Typography variant="body1" sx={{ mb: 2, color: "text.primary", fontWeight: 500 }}>
                 {qr.question_text}
               </Typography>
             )}
@@ -263,9 +263,10 @@ function ReviewQuestion({ qr, index }) {
             sx={{
               mt: 2,
               p: 2,
-              background: "#f8f9fa",
+              bgcolor: "grey.100",
               borderRadius: "10px",
-              borderLeft: "3px solid #1A73E8",
+              borderLeft: "3px solid",
+              borderColor: "primary.main",
             }}
           >
             <Typography variant="caption" color="primary" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
@@ -378,7 +379,7 @@ export default function ProgressPage() {
             </Button>
             <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
               <Chip label={skillLabel(reviewData?.skill)} color={skillChipColor(reviewData?.skill)} size="small" sx={{ fontWeight: 600 }} />
-              <Chip label={topicLabel} sx={{ background: "#f0f2f5", fontWeight: 600 }} />
+              <Chip label={topicLabel} sx={{ bgcolor: "grey.200", fontWeight: 600 }} />
               <Typography variant="body2" color="text.secondary">{dateLabel}</Typography>
             </Box>
             {scoreLabel && (
@@ -545,11 +546,11 @@ export default function ProgressPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Skill</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Topic</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Score</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Result</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Skill</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Topic</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Score</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>Result</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableHead>
@@ -560,16 +561,16 @@ export default function ProgressPage() {
                       hover
                       sx={{ "&:last-child td": { border: 0 } }}
                     >
-                      <TableCell sx={{ color: "#7B809A", fontSize: "0.8rem" }}>
+                      <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
                         {formatDate(entry.completed_at)}
                       </TableCell>
                       <TableCell>
                         <Chip label={skillLabel(entry.skill)} size="small" color={skillChipColor(entry.skill)} sx={{ fontWeight: 600 }} />
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 500, color: "#344767" }}>
+                      <TableCell sx={{ fontWeight: 500, color: "text.primary" }}>
                         {entry.topic}
                       </TableCell>
-                      <TableCell sx={{ color: "#344767" }}>
+                      <TableCell sx={{ color: "text.primary" }}>
                         {entry.total_score}/{entry.max_score}
                       </TableCell>
                       <TableCell>

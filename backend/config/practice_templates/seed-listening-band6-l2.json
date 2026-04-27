@@ -1,0 +1,49 @@
+{
+  "_id": "seed-listening-band6-l2",
+  "skill": "listening",
+  "difficulty": "band6",
+  "focus_micro_skill": "L2.1_specific_detail_capture",
+  "writing_task_type": null,
+  "active": true,
+  "session_data": {
+    "topic": "Library desk enquiry",
+    "transcript": "A: Good morning, City Library, how can I help?\nB: Hi, I reserved a book online. The code is BR-2041.\nA: One moment… Yes, it arrived yesterday. You can collect it until Friday at 6 p.m.\nB: Great. Do I need my card?\nA: Yes, please bring your membership card and ID. If Friday is difficult, we can extend the hold once for three days.\nB: Friday should be fine. Thanks.",
+    "passage": "A: Good morning, City Library, how can I help?\nB: Hi, I reserved a book online. The code is BR-2041.\nA: One moment… Yes, it arrived yesterday. You can collect it until Friday at 6 p.m.\nB: Great. Do I need my card?\nA: Yes, please bring your membership card and ID. If Friday is difficult, we can extend the hold once for three days.\nB: Friday should be fine. Thanks.",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "mc_single",
+        "skill_id": "L2.1_specific_detail_capture",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "When did the reserved book arrive?",
+        "options": [
+          "A. This morning",
+          "B. Yesterday",
+          "C. Next Monday",
+          "D. The speaker does not say"
+        ],
+        "correct_answers": ["B"],
+        "explanation": "The librarian says it arrived yesterday."
+      },
+      {
+        "id": "q2",
+        "type": "mc_single",
+        "skill_id": "L2.2_form_completion",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "What must the borrower bring?",
+        "options": [
+          "A. Only cash",
+          "B. Membership card and ID",
+          "C. The reservation code only",
+          "D. A printed receipt from another branch"
+        ],
+        "correct_answers": ["B"],
+        "explanation": "The librarian asks for membership card and ID."
+      }
+    ]
+  }
+}

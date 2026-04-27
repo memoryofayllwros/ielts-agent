@@ -1,0 +1,32 @@
+{
+  "_id": "seed-reading-band6-wildcard",
+  "skill": "reading",
+  "difficulty": "band6",
+  "focus_micro_skill": null,
+  "writing_task_type": null,
+  "active": true,
+  "session_data": {
+    "topic": "Public libraries",
+    "passage": "Many public libraries have expanded beyond lending books. They now offer digital borrowing, skills workshops, and quiet study space for students without reliable internet at home. Partnerships with schools and nonprofits help target community needs. Funding remains uneven: some systems upgrade technology regularly, while others rely on volunteers to keep weekend hours.",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "mc_multiple",
+        "skill_id": "R5.2_argument_structure",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "Which TWO statements are supported by the passage?",
+        "options": [
+          "A. All libraries have identical funding",
+          "B. Libraries may provide internet access for study",
+          "C. Partnerships can help meet local needs",
+          "D. Printed books have disappeared completely",
+          "E. Every library closes on weekends"
+        ],
+        "correct_answers": ["B", "C"],
+        "explanation": "The text mentions internet-related study needs and partnerships; it denies uniform funding (E/A wrong) and does not say books vanished."
+      }
+    ]
+  }
+}

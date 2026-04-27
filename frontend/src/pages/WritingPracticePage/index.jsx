@@ -40,7 +40,7 @@ function EvaluationView({ evaluation }) {
         <Typography variant="body2" sx={{ mt: 1 }}><strong>Improve:</strong> {evaluation.improvements.join(" · ")}</Typography>
       )}
       {evaluation.revised_excerpt && (
-        <Box sx={{ mt: 2, p: 2, bgcolor: "#f8f9fa", borderRadius: 2 }}>
+        <Box sx={{ mt: 2, p: 2, bgcolor: "grey.100", borderRadius: 2, border: 1, borderColor: "divider" }}>
           <Typography variant="caption" fontWeight={700} color="primary">Suggested revision</Typography>
           <Typography variant="body2" sx={{ mt: 0.5 }}>{evaluation.revised_excerpt}</Typography>
         </Box>
@@ -153,7 +153,7 @@ export default function WritingPracticePage({
     return (
       <Box>
         <DashboardNavbar title="Writing" />
-        <Box sx={{ maxWidth: 640, mx: "auto" }}>
+        <Box sx={{ width: "100%", minWidth: 0 }}>
           <Card sx={{ borderRadius: "16px" }}>
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>IELTS Writing</Typography>

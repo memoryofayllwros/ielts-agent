@@ -1,7 +1,7 @@
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
@@ -30,6 +30,10 @@ async def init_db():
     await _db.results.create_index([("user_id", 1), ("skill", 1)])
     await _db.vocab_sessions.create_index([("user_id", 1)])
     await _db.vocab_results.create_index([("user_id", 1), ("completed_at", -1)])
+    await _db.practice_templates.create_index(
+        [("skill", 1), ("difficulty", 1), ("active", 1), ("writing_task_type", 1)]
+    )
+    await _db.sessions.create_index([("user_id", 1), ("skill", 1), ("source_template_id", 1)])
 
 
 async def close_db():
@@ -131,6 +135,7 @@ async def save_session(
     user_id: str,
     skill: str = "reading",
     is_diagnostic: bool = False,
+    source_template_id: Optional[str] = None,
 ) -> str:
     session_id = str(uuid.uuid4())
     doc = {
@@ -142,6 +147,8 @@ async def save_session(
         "session_data": session_data,
         "is_diagnostic": bool(is_diagnostic),
     }
+    if source_template_id:
+        doc["source_template_id"] = source_template_id
     await _db_handle().sessions.insert_one(doc)
     return session_id
 
@@ -154,6 +161,76 @@ async def get_session(session_id: str) -> Optional[dict]:
 async def get_session_record(session_id: str) -> Optional[dict]:
     """Full session document including skill and user_id."""
     return await _db_handle().sessions.find_one({"_id": session_id})
+
+
+async def list_used_template_ids(user_id: str, skill: str) -> set[str]:
+    """Practice sessions instantiated from the template pool (dedup per user)."""
+    db = _db_handle()
+    cursor = db.sessions.find(
+        {
+            "user_id": user_id,
+            "skill": skill,
+            "is_diagnostic": {"$ne": True},
+            "source_template_id": {"$exists": True, "$ne": None},
+        },
+        {"source_template_id": 1},
+    )
+    out: set[str] = set()
+    async for doc in cursor:
+        tid = doc.get("source_template_id")
+        if tid:
+            out.add(str(tid))
+    return out
+
+
+async def fetch_practice_templates(
+    skill: str,
+    difficulty: str,
+    *,
+    writing_task_type: Optional[str] = None,
+) -> list[dict]:
+    q: dict = {"skill": skill, "difficulty": difficulty, "active": True}
+    if skill == "writing" and writing_task_type:
+        q["writing_task_type"] = writing_task_type
+    cursor = _db_handle().practice_templates.find(q)
+    return [doc async for doc in cursor]
+
+
+async def recent_skill_exposure_counts(user_id: str, since_iso: str) -> dict[str, int]:
+    """Count skill_outcomes rows per skill_id since since_iso (practice results only)."""
+    match: dict = {
+        "user_id": user_id,
+        "is_diagnostic": {"$ne": True},
+        "completed_at": {"$gte": since_iso},
+    }
+    pipeline = [
+        {"$match": match},
+        {"$project": {"outcomes": {"$ifNull": ["$result_data.skill_outcomes", []]}}},
+        {"$unwind": {"path": "$outcomes", "preserveNullAndEmptyArrays": False}},
+        {"$group": {"_id": "$outcomes.skill_id", "n": {"$sum": 1}}},
+    ]
+    out: dict[str, int] = {}
+    async for doc in _db_handle().results.aggregate(pipeline):
+        sid = doc.get("_id")
+        if sid:
+            out[str(sid)] = int(doc.get("n", 0))
+    return out
+
+
+def exposure_window_start_iso(days: int) -> str:
+    d = max(1, int(days))
+    return (datetime.now(timezone.utc) - timedelta(days=d)).isoformat()
+
+
+async def upsert_practice_template(doc: dict) -> None:
+    """Insert or replace one practice_templates row by _id."""
+    if not doc.get("_id"):
+        raise ValueError("practice template document must include _id")
+    await _db_handle().practice_templates.replace_one(
+        {"_id": doc["_id"]},
+        doc,
+        upsert=True,
+    )
 
 
 # ── Results ───────────────────────────────────────────────────────────────────

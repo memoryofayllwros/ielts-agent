@@ -61,6 +61,7 @@ from learning import (
     week_bounds_utc,
     writing_evaluation_to_skill_outcomes,
 )
+from practice_pool import pick_template_from_pool, instantiate_session_from_template
 from skills_taxonomy import (
     get_skill_label,
     skill_ids_for_module,
@@ -236,32 +237,50 @@ async def generate(req: GenerateRequest, user_id: str = Depends(get_current_user
     skill = req.skill
     learner_band = await _learner_band_hint(user_id)
     focus_micro, dd = await _resolve_practice_focus(user_id, skill, req)
-    try:
-        if skill == "reading":
-            raw = await generate_practice_session(
-                req.topic,
-                learner_band=learner_band,
-                focus_micro_skill=focus_micro,
-                default_difficulty=dd,
-            )
-        elif skill == "listening":
-            raw = await listening_agent(
-                req.topic,
-                learner_band=learner_band,
-                focus_micro_skill=focus_micro,
-                default_difficulty=dd,
-            )
-        elif skill == "writing":
-            wtype = req.writing_task_type or "write_essay"
-            raw = await writing_agent(
-                req.topic, wtype, learner_band=learner_band, focus_micro_skill=focus_micro
-            )
-        else:
-            raw = await speaking_agent(req.topic, learner_band=learner_band, focus_micro_skill=focus_micro)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    wtype = (req.writing_task_type or "write_essay") if skill == "writing" else None
 
-    session_id = await save_session(raw, user_id, skill=skill)
+    raw = None
+    source_template_id = None
+    topic_forces_llm = bool(req.topic and str(req.topic).strip())
+    if not topic_forces_llm:
+        picked = await pick_template_from_pool(
+            user_id,
+            skill,
+            dd,
+            focus_micro,
+            writing_task_type=wtype,
+        )
+        if picked:
+            raw, source_template_id = instantiate_session_from_template(picked)
+
+    if raw is None:
+        try:
+            if skill == "reading":
+                raw = await generate_practice_session(
+                    req.topic,
+                    learner_band=learner_band,
+                    focus_micro_skill=focus_micro,
+                    default_difficulty=dd,
+                )
+            elif skill == "listening":
+                raw = await listening_agent(
+                    req.topic,
+                    learner_band=learner_band,
+                    focus_micro_skill=focus_micro,
+                    default_difficulty=dd,
+                )
+            elif skill == "writing":
+                raw = await writing_agent(
+                    req.topic, wtype or "write_essay", learner_band=learner_band, focus_micro_skill=focus_micro
+                )
+            else:
+                raw = await speaking_agent(req.topic, learner_band=learner_band, focus_micro_skill=focus_micro)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+    session_id = await save_session(
+        raw, user_id, skill=skill, source_template_id=source_template_id
+    )
 
     common_meta = {
         "recommended_focus": focus_micro,

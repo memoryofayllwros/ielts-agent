@@ -40,7 +40,7 @@ const LEVEL_COLOR = {
 };
 
 function LevelChip({ level, size = "small" }) {
-  const c = LEVEL_COLOR[level] || { bg: "#f0f2f5", text: "#344767", border: "#ccc" };
+  const c = LEVEL_COLOR[level] || { bg: "#f1f5f9", text: "#1e293b", border: "#cbd5e1" };
   return (
     <Chip
       label={level}
@@ -68,7 +68,7 @@ const LEVEL_LABEL = {
 };
 
 function LevelResult({ level, vocabSize }) {
-  const c = LEVEL_COLOR[level] || { bg: "#f0f2f5", text: "#344767", border: "#ccc" };
+  const c = LEVEL_COLOR[level] || { bg: "#f1f5f9", text: "#1e293b", border: "#cbd5e1" };
   return (
     <Box
       sx={{
@@ -104,7 +104,7 @@ function LevelBreakdown({ breakdown }) {
     <Box>
       {breakdown.map((b) => {
         const acc = b.accuracy ?? 0;
-        const c = LEVEL_COLOR[b.level] || { bg: "#f0f2f5", text: "#344767", border: "#ccc" };
+        const c = LEVEL_COLOR[b.level] || { bg: "#f1f5f9", text: "#1e293b", border: "#cbd5e1" };
         return (
           <Box key={b.level} sx={{ mb: 1.5 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
@@ -124,7 +124,7 @@ function LevelBreakdown({ breakdown }) {
               sx={{
                 height: 8,
                 borderRadius: 4,
-                background: "#f0f2f5",
+                bgcolor: "grey.200",
                 "& .MuiLinearProgress-bar": { background: c.border, borderRadius: 4 },
               }}
             />
@@ -171,7 +171,7 @@ function HistoryPanel({ onReview }) {
         <TableHead>
           <TableRow>
             {["Date", "Topic", "Level", "Vocab Size", "Score", ""].map((h) => (
-              <TableCell key={h} sx={{ fontWeight: 700, color: "#7B809A", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
+              <TableCell key={h} sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: 0.5 }}>
                 {h}
               </TableCell>
             ))}
@@ -180,10 +180,10 @@ function HistoryPanel({ onReview }) {
         <TableBody>
           {history.map((e) => (
             <TableRow key={e.result_id} hover sx={{ "&:last-child td": { border: 0 } }}>
-              <TableCell sx={{ color: "#7B809A", fontSize: "0.8rem" }}>{fmt(e.completed_at)}</TableCell>
-              <TableCell sx={{ fontWeight: 500, color: "#344767" }}>{e.topic}</TableCell>
+              <TableCell sx={{ color: "text.secondary", fontSize: "0.8rem" }}>{fmt(e.completed_at)}</TableCell>
+              <TableCell sx={{ fontWeight: 500, color: "text.primary" }}>{e.topic}</TableCell>
               <TableCell><LevelChip level={e.estimated_level} /></TableCell>
-              <TableCell sx={{ color: "#344767" }}>~{e.estimated_vocab_size.toLocaleString()}</TableCell>
+              <TableCell sx={{ color: "text.primary" }}>~{e.estimated_vocab_size.toLocaleString()}</TableCell>
               <TableCell>
                 <Chip
                   label={`${e.percentage}%`}
@@ -280,7 +280,7 @@ function ReviewPanel({ resultId, onBack }) {
                         borderRadius: "6px",
                         fontWeight: isCorrect ? 700 : 400,
                         background: isCorrect ? "#e8f5e9" : isUser ? "#ffebee" : "#f0f2f5",
-                        color: isCorrect ? "#2e7d32" : isUser ? "#c62828" : "#7B809A",
+                        color: isCorrect ? "#2e7d32" : isUser ? "#c62828" : "text.secondary",
                         border: `1px solid ${isCorrect ? "#a5d6a7" : isUser ? "#ef9a9a" : "transparent"}`,
                       }}
                     />
@@ -288,7 +288,7 @@ function ReviewPanel({ resultId, onBack }) {
                 })}
               </Box>
               {!r.is_correct && r.explanation && (
-                <Box sx={{ mt: 1, p: 1.5, background: "#fff", borderRadius: "8px", borderLeft: "3px solid #1A73E8" }}>
+                <Box sx={{ mt: 1, p: 1.5, bgcolor: "background.paper", borderRadius: "8px", borderLeft: "3px solid", borderColor: "primary.main" }}>
                   <Typography variant="caption" color="primary" fontWeight={700}>Explanation: </Typography>
                   <Typography variant="caption" color="text.secondary">{r.explanation}</Typography>
                 </Box>
@@ -388,13 +388,13 @@ export default function VocabTestPage() {
     return (
       <Box>
         <DashboardNavbar title="Vocabulary Level Test" />
-        <Box sx={{ maxWidth: 620, mx: "auto" }}>
+        <Box sx={{ width: "100%", minWidth: 0 }}>
           <Card sx={{ borderRadius: "16px" }}>
             <CardContent sx={{ p: 4 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
                 <Box sx={{
                   width: 56, height: 56, borderRadius: "14px",
-                  background: "linear-gradient(135deg, #1A73E8, #0D47A1)",
+                  background: (t) => `linear-gradient(135deg, ${t.palette.primary.dark}, ${t.palette.primary.main})`,
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   <SpellcheckIcon sx={{ color: "#fff", fontSize: "1.75rem" }} />
@@ -518,9 +518,10 @@ export default function VocabTestPage() {
 
             <Box sx={{
               p: 2.5, mb: 3,
-              background: "#f8f9fa",
+              bgcolor: "grey.100",
               borderRadius: "12px",
-              borderLeft: "4px solid #1A73E8",
+              borderLeft: "4px solid",
+              borderColor: "primary.main",
             }}>
               <Typography variant="body1" color="text.secondary" sx={{ fontStyle: "italic", lineHeight: 1.8 }}>
                 {currentQuestion.sentence}
@@ -537,19 +538,19 @@ export default function VocabTestPage() {
                 const isChosen = chosen === key;
                 const isAnswered = !!answered;
 
-                let bg = "#f8f9fa";
+                let bg = "#f1f5f9";
                 let border = "1px solid transparent";
-                let color = "#344767";
+                let color = "#1e293b";
 
                 if (isAnswered && isChosen && !showFeedback) {
                   // Already answered, not in feedback window — dim chosen
-                  bg = "#e3f2fd";
-                  border = "1px solid #90caf9";
+                  bg = "rgba(13, 148, 136, 0.12)";
+                  border = "1px solid rgba(13, 148, 136, 0.35)";
                 }
                 if (showFeedback && isChosen) {
                   // Brief flash
-                  bg = "#f0f2f5";
-                  border = "1px solid #bbb";
+                  bg = "#e2e8f0";
+                  border = "1px solid #cbd5e1";
                 }
 
                 return (
@@ -571,7 +572,7 @@ export default function VocabTestPage() {
                       color,
                       fontWeight: 500,
                       fontSize: "0.95rem",
-                      "&:hover": { background: answered ? bg : "#e3f2fd", border: answered ? border : "1px solid #90caf9" },
+                      "&:hover": { background: answered ? bg : "rgba(13, 148, 136, 0.08)", border: answered ? border : "1px solid rgba(13, 148, 136, 0.35)" },
                     }}
                   >
                     {opt}
@@ -602,13 +603,14 @@ export default function VocabTestPage() {
                   sx={{
                     width: 24, height: 24, borderRadius: "50%",
                     cursor: "pointer",
-                    background: answers[q.id]
-                      ? "#1A73E8"
+                    bgcolor: answers[q.id]
+                      ? "primary.main"
                       : i === currentIdx
-                        ? "#e3f2fd"
-                        : "#f0f2f5",
-                    border: i === currentIdx ? "2px solid #1A73E8" : "2px solid transparent",
-                    transition: "background 0.2s",
+                        ? "rgba(13, 148, 136, 0.18)"
+                        : "grey.200",
+                    border: i === currentIdx ? "2px solid" : "2px solid transparent",
+                    borderColor: i === currentIdx ? "primary.main" : "transparent",
+                    transition: "background-color 0.2s",
                   }}
                 />
               ))}

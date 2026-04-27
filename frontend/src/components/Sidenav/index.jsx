@@ -15,6 +15,11 @@ import { useMaterialUIController, setMiniSidenav } from "context";
 
 const DRAWER_WIDTH = 250;
 
+const ACTIVE_NAV = {
+  background: "linear-gradient(145deg, #0F766E 0%, #0D9488 55%, #14B8A6 100%)",
+  boxShadow: "0 4px 14px rgba(13, 148, 136, 0.35)",
+};
+
 function Sidenav({ routes }) {
   const [controller, dispatch] = useMaterialUIController();
   const { miniSidenav } = controller;
@@ -35,7 +40,6 @@ function Sidenav({ routes }) {
 
   const drawerContent = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Brand */}
       <Box
         sx={{
           px: 2,
@@ -47,67 +51,64 @@ function Sidenav({ routes }) {
       >
         <Box
           sx={{
-            width: 36,
-            height: 36,
-            borderRadius: "10px",
-            background: "linear-gradient(195deg, #42424a, #191919)",
+            width: 40,
+            height: 40,
+            borderRadius: "12px",
+            background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "1.2rem",
+            boxShadow: "0 4px 12px rgba(13, 148, 136, 0.35)",
+            color: "#fff",
+            fontSize: "1.35rem",
+            fontWeight: 700,
+            fontFamily: '"Source Serif 4", Georgia, serif',
           }}
         >
-          📖
+          IB
         </Box>
         {!miniSidenav && (
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 700, color: "#344767", lineHeight: 1.2 }}
-          >
+          <Typography variant="h6" sx={{ fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>
             IELTS Band Booster
             <Typography
               component="span"
               variant="caption"
               display="block"
-              sx={{ color: "#7B809A", fontWeight: 400 }}
+              sx={{ color: "text.secondary", fontWeight: 500, mt: 0.25 }}
             >
-              All four skills
+              Listening · Reading · Writing · Speaking
             </Typography>
           </Typography>
         )}
       </Box>
 
-      <Divider sx={{ mb: 1 }} />
+      <Divider sx={{ mb: 1, opacity: 0.7 }} />
 
-      {/* Nav items */}
       <List sx={{ flex: 1, px: 1 }}>
         {routes.map((route) => {
-          const isActive = pathname === route.route || pathname.startsWith(route.route + "/");
+          const isActive = pathname === route.route || pathname.startsWith(`${route.route}/`);
           return (
             <ListItem key={route.key} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
                 component={NavLink}
                 to={route.route}
                 sx={{
-                  borderRadius: "8px",
+                  borderRadius: "10px",
                   px: 2,
-                  py: 1,
-                  minHeight: 44,
-                  background: isActive
-                    ? "linear-gradient(195deg, #42424a, #191919)"
-                    : "transparent",
+                  py: 1.125,
+                  minHeight: 46,
+                  background: isActive ? ACTIVE_NAV.background : "transparent",
+                  boxShadow: isActive ? ACTIVE_NAV.boxShadow : "none",
                   "&:hover": {
-                    background: isActive
-                      ? "linear-gradient(195deg, #42424a, #191919)"
-                      : "rgba(0,0,0,0.04)",
+                    background: isActive ? ACTIVE_NAV.background : "rgba(13, 148, 136, 0.08)",
                   },
-                  transition: "background 0.2s",
+                  transition: "background 0.2s, box-shadow 0.2s",
                 }}
               >
                 <ListItemIcon
                   sx={{
-                    minWidth: miniSidenav ? 0 : 36,
-                    color: isActive ? "#fff" : "#7B809A",
+                    minWidth: miniSidenav ? 0 : 38,
+                    color: isActive ? "#fff" : "text.secondary",
                     justifyContent: "center",
                   }}
                 >
@@ -117,9 +118,9 @@ function Sidenav({ routes }) {
                   <ListItemText
                     primary={route.name}
                     primaryTypographyProps={{
-                      fontSize: "0.875rem",
-                      fontWeight: isActive ? 600 : 400,
-                      color: isActive ? "#fff" : "#344767",
+                      fontSize: "0.9rem",
+                      fontWeight: isActive ? 600 : 500,
+                      color: isActive ? "#fff" : "text.primary",
                     }}
                   />
                 )}
@@ -128,6 +129,14 @@ function Sidenav({ routes }) {
           );
         })}
       </List>
+
+      {!miniSidenav && (
+        <Box sx={{ px: 2, pb: 2.5, pt: 1 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary", display: "block", lineHeight: 1.5 }}>
+            Exam-style practice with feedback on skills and band-level difficulty.
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 
@@ -143,8 +152,8 @@ function Sidenav({ routes }) {
           boxSizing: "border-box",
           border: "none",
           borderRadius: "0 16px 16px 0",
-          boxShadow: "0 20px 27px 0 rgba(0,0,0,0.05)",
-          background: "#fff",
+          boxShadow: "4px 0 24px rgba(15, 23, 42, 0.06)",
+          background: "#FDFCFA",
           overflowX: "hidden",
           transition: "width 0.3s ease",
         },

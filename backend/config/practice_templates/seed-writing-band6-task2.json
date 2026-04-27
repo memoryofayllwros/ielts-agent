@@ -1,0 +1,29 @@
+{
+  "_id": "seed-writing-band6-task2",
+  "skill": "writing",
+  "difficulty": "band6",
+  "focus_micro_skill": "W1.1_task_response_completeness",
+  "writing_task_type": "write_essay",
+  "active": true,
+  "session_data": {
+    "task_type": "write_essay",
+    "topic": "Remote work and cities",
+    "prompt": "Some people believe that increased remote work will make city centres less important. Others think cities will remain essential for culture and collaboration. Discuss both views and give your own opinion.",
+    "instruction": "Write at least 250 words. Give reasons for your answer and include relevant examples from your knowledge or experience. You have 40 minutes.",
+    "word_limit": {"min": 250, "max": 320},
+    "time_limit_minutes": 40,
+    "outline": [
+      "Introduction: paraphrase the question and state your position",
+      "Body: view that remote work reduces reliance on city centres",
+      "Body: view that cities stay central for culture and collaboration",
+      "Conclusion: balanced judgement"
+    ],
+    "scoring_criteria": [
+      {"category": "Task Response", "max_score": 3, "descriptor": "Fully addresses all parts of the task; clear position throughout"},
+      {"category": "Coherence & Cohesion", "max_score": 2, "descriptor": "Logical progression; clear paragraphs; cohesive devices"},
+      {"category": "Lexical Resource", "max_score": 2, "descriptor": "Range and accuracy of vocabulary"},
+      {"category": "Grammatical Range & Accuracy", "max_score": 2, "descriptor": "Variety of structures; predominantly error-free"}
+    ],
+    "model_answer": "Remote work has reshaped where many people spend their working week, and this has fed debate about the future of city centres. On one hand, if large employers allow staff to work from home, demand for central office space may fall, and some retail and transport services could see lower weekday traffic. That might weaken the economic pull of traditional downtowns. On the other hand, cities often remain hubs for museums, universities, conferences, and face-to-face collaboration that video calls cannot fully replace. Many creative industries still benefit from spontaneous interaction. In my view, city centres will change rather than disappear: they may become more residential and leisure-oriented while retaining specialised functions that benefit from density. Policy and infrastructure choices will determine how smoothly that transition happens."
+  }
+}

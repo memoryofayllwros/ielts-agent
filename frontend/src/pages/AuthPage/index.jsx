@@ -22,11 +22,9 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Sign in fields
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
 
-  // Sign up fields
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
 
@@ -66,11 +64,20 @@ export default function AuthPage() {
     <Box
       sx={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #1A73E8 0%, #0D47A1 100%)",
+        background: "linear-gradient(155deg, #0F766E 0%, #115E59 38%, #134E4A 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         p: 2,
+        position: "relative",
+        overflow: "hidden",
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse 80% 50% at 100% 0%, rgba(45, 212, 191, 0.25) 0%, transparent 55%)",
+          pointerEvents: "none",
+        },
       }}
     >
       <Card
@@ -78,56 +85,64 @@ export default function AuthPage() {
           width: "100%",
           maxWidth: 420,
           borderRadius: "16px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+          boxShadow: "0 24px 64px rgba(15, 23, 42, 0.28)",
+          position: "relative",
+          zIndex: 1,
+          border: "1px solid rgba(255,255,255,0.5)",
         }}
       >
         <CardContent sx={{ p: 4 }}>
-          {/* Logo */}
           <Box sx={{ textAlign: "center", mb: 3 }}>
             <Box
               sx={{
                 width: 56,
                 height: 56,
-                borderRadius: "16px",
-                background: "linear-gradient(195deg, #42424a, #191919)",
+                borderRadius: "14px",
+                background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "1.75rem",
                 mb: 1.5,
+                color: "#fff",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                fontFamily: '"Source Serif 4", Georgia, serif',
+                boxShadow: "0 8px 24px rgba(13, 148, 136, 0.4)",
               }}
             >
-              📖
+              IB
             </Box>
             <Typography variant="h5" fontWeight={700} color="text.primary">
               IELTS Band Booster
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Reading, Listening, Writing & Speaking
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.5 }}>
+              Practice for the four papers — reading, listening, writing, and speaking — with skill-level feedback.
             </Typography>
           </Box>
 
-          {/* Tabs */}
           <Tabs
             value={tab}
-            onChange={(_, v) => { setTab(v); setError(""); }}
+            onChange={(_, v) => {
+              setTab(v);
+              setError("");
+            }}
             variant="fullWidth"
             sx={{
               mb: 3,
-              "& .MuiTabs-indicator": { borderRadius: "2px" },
+              minHeight: 44,
+              "& .MuiTabs-indicator": { borderRadius: "2px", height: 3, backgroundColor: "primary.main" },
             }}
           >
-            <Tab label="Sign In" sx={{ fontWeight: 600, textTransform: "none" }} />
-            <Tab label="Sign Up" sx={{ fontWeight: 600, textTransform: "none" }} />
+            <Tab label="Sign in" sx={{ fontWeight: 600, textTransform: "none", fontSize: "0.95rem" }} />
+            <Tab label="Create account" sx={{ fontWeight: 600, textTransform: "none", fontSize: "0.95rem" }} />
           </Tabs>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2, borderRadius: "8px" }}>
+            <Alert severity="error" sx={{ mb: 2, borderRadius: "10px" }}>
               {error}
             </Alert>
           )}
 
-          {/* Sign In Form */}
           {tab === 0 && (
             <Box component="form" onSubmit={handleSignIn} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <TextField
@@ -157,14 +172,13 @@ export default function AuthPage() {
                 size="large"
                 fullWidth
                 disabled={loading}
-                sx={{ mt: 1, py: 1.25, borderRadius: "8px", fontWeight: 700 }}
+                sx={{ mt: 1, py: 1.25, borderRadius: "10px", fontWeight: 700 }}
               >
-                {loading ? <CircularProgress size={22} color="inherit" /> : "Sign In"}
+                {loading ? <CircularProgress size={22} color="inherit" /> : "Sign in"}
               </Button>
             </Box>
           )}
 
-          {/* Sign Up Form */}
           {tab === 1 && (
             <Box component="form" onSubmit={handleSignUp} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <TextField
@@ -185,7 +199,7 @@ export default function AuthPage() {
                 required
                 fullWidth
                 size="small"
-                helperText="Minimum 6 characters"
+                helperText="At least 6 characters"
                 autoComplete="new-password"
               />
               <Button
@@ -195,9 +209,9 @@ export default function AuthPage() {
                 size="large"
                 fullWidth
                 disabled={loading}
-                sx={{ mt: 1, py: 1.25, borderRadius: "8px", fontWeight: 700 }}
+                sx={{ mt: 1, py: 1.25, borderRadius: "10px", fontWeight: 700 }}
               >
-                {loading ? <CircularProgress size={22} color="inherit" /> : "Create Account"}
+                {loading ? <CircularProgress size={22} color="inherit" /> : "Create account"}
               </Button>
             </Box>
           )}

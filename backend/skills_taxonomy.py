@@ -123,6 +123,30 @@ def _skill_index() -> dict[str, dict[str, str]]:
 
 
 @lru_cache
+def get_cluster_id_for_skill(skill_id: str) -> Optional[str]:
+    """Taxonomy cluster key (e.g. R1, L2) for a micro-skill, if defined."""
+    modules = _raw().get("modules") or {}
+    for m in modules.values():
+        for cid, cl in (m.get("clusters") or {}).items():
+            for sk in cl.get("skills") or []:
+                if sk.get("id") == skill_id:
+                    return str(cid)
+    return None
+
+
+@lru_cache
+def skill_ids_in_same_cluster(skill_id: str) -> frozenset[str]:
+    """All micro-skill ids in the same cluster as skill_id (including self)."""
+    modules = _raw().get("modules") or {}
+    for m in modules.values():
+        for cl in (m.get("clusters") or {}).values():
+            ids = [str(sk["id"]) for sk in cl.get("skills") or [] if sk.get("id")]
+            if skill_id in ids:
+                return frozenset(ids)
+    return frozenset({skill_id}) if skill_id else frozenset()
+
+
+@lru_cache
 def _module_to_skills() -> dict[str, frozenset[str]]:
     out: dict[str, set[str]] = {}
     modules = _raw().get("modules") or {}

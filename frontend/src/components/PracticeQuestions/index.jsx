@@ -30,7 +30,7 @@ export function FillInBlanksQuestion({ question, answers, onAnswer, submitted, r
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
         Fill in the Blanks
       </Typography>
-      <Typography variant="body1" sx={{ lineHeight: 2.2, color: "#344767" }} component="div">
+      <Typography variant="body1" sx={{ lineHeight: 2.2, color: "text.primary" }} component="div">
         {parts.map((part, i) => {
           const match = part.match(/\[BLANK_(\d+)\]/);
           if (match) {
@@ -111,7 +111,7 @@ export function McSingleQuestion({ question, answers, onAnswer, submitted, resul
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
         Multiple Choice — Single Answer
       </Typography>
-      <Typography variant="body1" sx={{ mb: 2, color: "#344767", fontWeight: 500 }}>
+      <Typography variant="body1" sx={{ mb: 2, color: "text.primary", fontWeight: 500 }}>
         {question.question}
       </Typography>
       <RadioGroup value={userAns} onChange={(e) => !submitted && onAnswer([e.target.value])}>
@@ -160,7 +160,7 @@ export function McMultipleQuestion({ question, answers, onAnswer, submitted, res
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
         Multiple Choice — Multiple Answers
       </Typography>
-      <Typography variant="body1" sx={{ mb: 2, color: "#344767", fontWeight: 500 }}>
+      <Typography variant="body1" sx={{ mb: 2, color: "text.primary", fontWeight: 500 }}>
         {question.question}
       </Typography>
       <FormGroup>
@@ -218,7 +218,7 @@ export function QuestionCard({ question, index, answers, onAnswer, submitted, re
               This question uses an unsupported format ({String(question?.type || "unknown")}). Start a new session or update the app.
             </Typography>
             {question?.question && (
-              <Typography variant="body2" sx={{ color: "#344767" }}>{question.question}</Typography>
+              <Typography variant="body2" sx={{ color: "text.primary" }}>{question.question}</Typography>
             )}
           </Box>
         )}
@@ -233,7 +233,7 @@ export function QuestionCard({ question, index, answers, onAnswer, submitted, re
           </Box>
         )}
         {submitted && result?.explanation && (
-          <Box sx={{ mt: 2, p: 2, background: "#f8f9fa", borderRadius: "10px", borderLeft: "3px solid #1A73E8" }}>
+          <Box sx={{ mt: 2, p: 2, bgcolor: "grey.100", borderRadius: "10px", borderLeft: "3px solid", borderColor: "primary.main" }}>
             <Typography variant="caption" color="primary" fontWeight={700} display="block" sx={{ mb: 0.5 }}>
               Explanation
             </Typography>

@@ -1,0 +1,48 @@
+{
+  "_id": "seed-reading-band6-r1",
+  "skill": "reading",
+  "difficulty": "band6",
+  "focus_micro_skill": "R1.1_skimming_main_idea",
+  "writing_task_type": null,
+  "active": true,
+  "session_data": {
+    "topic": "Urban green roofs",
+    "passage": "Urban green roofs are increasingly used to cool cities and manage stormwater. Vegetation absorbs sunlight and releases moisture through transpiration, which can lower rooftop temperatures by several degrees compared with bare surfaces. Engineers also note that layered soil and plants delay rainwater runoff, reducing pressure on drains after heavy rain. Critics point to installation cost and building load limits, but pilot projects in several regions report energy savings and improved air quality nearby.",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "mc_single",
+        "skill_id": "R1.1_skimming_main_idea",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "What is the main purpose of the passage?",
+        "options": [
+          "A. To argue that green roofs are always cheaper than traditional roofs",
+          "B. To describe benefits and limitations of urban green roofs",
+          "C. To explain how to build a private garden on a balcony",
+          "D. To compare cities in different continents only"
+        ],
+        "correct_answers": ["B"],
+        "explanation": "The passage balances benefits (cooling, stormwater, savings, air quality) with drawbacks (cost, load limits)."
+      },
+      {
+        "id": "q2",
+        "type": "mc_single",
+        "skill_id": "R1.2_scanning_specific_information",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "According to the passage, what effect does transpiration have?",
+        "options": [
+          "A. It blocks all sunlight from reaching streets",
+          "B. It helps lower rooftop temperatures",
+          "C. It removes the need for soil on roofs",
+          "D. It guarantees zero maintenance costs"
+        ],
+        "correct_answers": ["B"],
+        "explanation": "The text links transpiration (moisture release) to lowering rooftop temperatures."
+      }
+    ]
+  }
+}

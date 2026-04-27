@@ -74,8 +74,8 @@ export default function NextBestPracticeCard({ module = "reading" }) {
       sx={{
         borderRadius: "16px",
         border: "1px solid",
-        borderColor: "primary.light",
-        background: "linear-gradient(135deg, rgba(25, 118, 210, 0.06) 0%, rgba(255,255,255,1) 100%)",
+        borderColor: "rgba(13, 148, 136, 0.28)",
+        background: "linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, #fff 100%)",
       }}
     >
       <CardContent sx={{ p: 2.5 }}>
@@ -122,7 +122,7 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                 )}
               </>
             ) : (
-              <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1, color: "#344767" }}>
+              <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1, color: "text.primary" }}>
                 Build a bit more data
               </Typography>
             )}
@@ -145,7 +145,7 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                   </Typography>
                 ) : null}
                 {data.suggested_practice ? (
-                  <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 500, color: "#344767" }}>
+                  <Typography variant="body2" sx={{ mt: 0.75, fontWeight: 500, color: "text.primary" }}>
                     {data.suggested_practice}
                   </Typography>
                 ) : null}

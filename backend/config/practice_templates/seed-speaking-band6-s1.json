@@ -1,0 +1,37 @@
+{
+  "_id": "seed-speaking-band6-s1",
+  "skill": "speaking",
+  "difficulty": "band6",
+  "focus_micro_skill": "S1.1_speech_continuity",
+  "writing_task_type": null,
+  "active": true,
+  "session_data": {
+    "part": 2,
+    "topic": "A skill you learned",
+    "prompt": "Describe a practical skill you learned (for example cooking, fixing something, or using a tool). You should say: what the skill was; how you learned it; how long it took to feel confident; and why it has been useful for you.",
+    "bullet_points": [
+      "what the skill was",
+      "how you learned it",
+      "how long it took to feel confident",
+      "why it has been useful"
+    ],
+    "prep_seconds": 60,
+    "speak_seconds": 120,
+    "follow_up_questions": [
+      "Do you think schools should teach more practical skills?",
+      "What kinds of skills are most valued in your country today?"
+    ],
+    "model_outline": [
+      "Choose a concrete skill (e.g. basic bike repair) and set the scene",
+      "Explain who taught you or how you practised step by step",
+      "Mention one difficulty you overcame and when it started to feel natural",
+      "Close with a real-life situation where the skill helped"
+    ],
+    "assessment_criteria": [
+      {"category": "Fluency & Coherence", "max_score": 3, "descriptor": "Natural pace; coherence; hesitation"},
+      {"category": "Lexical Resource", "max_score": 2, "descriptor": "Range and precision of vocabulary"},
+      {"category": "Grammatical Range & Accuracy", "max_score": 2, "descriptor": "Variety and control of structures"},
+      {"category": "Pronunciation (inferred from transcript only)", "max_score": 2, "descriptor": "Approximate from text: clarity and chunking cues"}
+    ]
+  }
+}

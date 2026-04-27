@@ -201,7 +201,7 @@ export default function ObjectivePracticePage({
     return (
       <Box>
         <DashboardNavbar title={navbarTitle} />
-        <Box sx={{ maxWidth: 600, mx: "auto" }}>
+        <Box sx={{ width: "100%", minWidth: 0 }}>
           <Card sx={{ borderRadius: "16px" }}>
             <CardContent sx={{ p: 4, textAlign: "center" }}>
               <Typography variant="h5" fontWeight={700} gutterBottom>{navbarTitle}</Typography>
@@ -281,7 +281,7 @@ export default function ObjectivePracticePage({
                 The listening script is not shown after the test. Review your answers below.
               </Typography>
             ) : (
-              <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
+              <Typography variant="body1" sx={{ lineHeight: 1.9, color: "text.primary", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
             )}
           </CardContent>
         </Card>
@@ -297,7 +297,7 @@ export default function ObjectivePracticePage({
       <DashboardNavbar title={navbarTitle} />
       <Card sx={{ mb: 3, borderRadius: "16px" }}>
         <CardContent sx={{ p: 2.5, display: "flex", alignItems: "center", gap: 2 }}>
-          <Chip label={session.topic} sx={{ background: "#f0f2f5", fontWeight: 600 }} />
+          <Chip label={session.topic} sx={{ bgcolor: "grey.200", fontWeight: 600 }} />
           <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
             {questions.length} question{questions.length === 1 ? "" : "s"}
           </Typography>
@@ -318,7 +318,7 @@ export default function ObjectivePracticePage({
             </>
           )}
           {skill !== "listening" && (
-            <Typography variant="body1" sx={{ lineHeight: 1.9, color: "#344767", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
+            <Typography variant="body1" sx={{ lineHeight: 1.9, color: "text.primary", whiteSpace: "pre-wrap" }}>{scriptText}</Typography>
           )}
         </CardContent>
       </Card>

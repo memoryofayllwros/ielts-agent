@@ -1,0 +1,48 @@
+{
+  "_id": "seed-reading-band6-r2",
+  "skill": "reading",
+  "difficulty": "band6",
+  "focus_micro_skill": "R2.1_synonym_matching",
+  "writing_task_type": null,
+  "active": true,
+  "session_data": {
+    "topic": "Ocean currents",
+    "passage": "The term \"thermohaline circulation\" describes large-scale movement of seawater driven by differences in temperature and salinity. Cold, salty water tends to sink near polar regions, while warmer, less dense water moves along the surface. This slow conveyor influences regional climates and nutrient transport. Scientists monitor shifts because changes in ice melt or rainfall can alter salinity patterns and, over decades, modify current strength.",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "mc_single",
+        "skill_id": "R2.1_synonym_matching",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "In the passage, \"conveyor\" is closest in meaning to:",
+        "options": [
+          "A. A machine that only heats water",
+          "B. A circulating system that moves water masses",
+          "C. A device used only in rivers",
+          "D. A type of submarine"
+        ],
+        "correct_answers": ["B"],
+        "explanation": "\"Conveyor\" refers metaphorically to the large-scale circulation described."
+      },
+      {
+        "id": "q2",
+        "type": "mc_single",
+        "skill_id": "R3.1_factual_detail_extraction",
+        "difficulty": "band6",
+        "passage_with_blanks": null,
+        "word_bank": null,
+        "question": "What can alter salinity patterns according to the text?",
+        "options": [
+          "A. Only submarine volcanoes",
+          "B. Changes in ice melt or rainfall",
+          "C. The colour of the ocean surface",
+          "D. Daily tides alone"
+        ],
+        "correct_answers": ["B"],
+        "explanation": "The passage explicitly mentions ice melt and rainfall."
+      }
+    ]
+  }
+}
