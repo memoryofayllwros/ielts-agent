@@ -21,9 +21,11 @@ from models import (
     LessonSummary, LessonDetail,
     LessonCompilePlanResponse,
     LessonComprehensionSubmit, LessonRoleplaySubmit,
+    AssistantChatRequest, AssistantChatResponse,
 )
 
-from ai import generate_practice_session, generate_diagnostic_reading_session
+from ai import generate_practice_session, generate_diagnostic_reading_session, assistant_chat
+from assistant_context import build_assistant_learner_context
 from diagnostic import (
     average_diagnostic_band,
     percentage_to_estimated_band,
@@ -221,6 +223,17 @@ async def auth_update_me(req: UserProfileUpdate, user_id: str = Depends(get_curr
     await set_user_profile_fields(user_id, data)
     user = await get_user_by_id(user_id)
     return _user_to_profile_response(user)
+
+
+@app.post("/api/assistant/chat", response_model=AssistantChatResponse)
+async def post_assistant_chat(req: AssistantChatRequest, user_id: str = Depends(get_current_user_id)):
+    try:
+        payload = [m.model_dump() for m in req.messages]
+        learner_context = await build_assistant_learner_context(user_id)
+        reply = await assistant_chat(payload, learner_context=learner_context)
+        return AssistantChatResponse(message=reply)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 def _questions_safe(raw: dict) -> list:

@@ -22,11 +22,12 @@ import SkillMapPage from "pages/SkillMapPage";
 import LessonsPage from "pages/LessonsPage";
 import LessonsPaperPage from "pages/LessonsPaperPage";
 import ProfilePage from "pages/ProfilePage";
+import AiChatWidget from "components/AiChatWidget";
 
 const NAV_ROUTES = [
   { key: "skillmap", name: "Skill map", icon: "hub", route: "/learning/skill-map", end: true },
-  { key: "practice", name: "Practice", icon: "school", route: "/practice", end: true },
   { key: "lessons", name: "Lessons", icon: "menu_book", route: "/lessons" },
+  { key: "practice", name: "Practice", icon: "school", route: "/practice", end: true },
   { key: "progress", name: "Progress", icon: "bar_chart", route: "/progress" },
 ];
 
@@ -62,6 +63,7 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AppLayout />
+      <AiChatWidget />
       <Routes>
         <Route path="/login" element={<AuthPage />} />
         <Route path="/" element={<Navigate to="/learning/skill-map" replace />} />

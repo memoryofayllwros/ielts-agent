@@ -418,6 +418,49 @@ Return a JSON object with exactly these fields:
 }}"""
 
 
+ASSISTANT_SYSTEM = """You are a friendly, concise IELTS study coach for the "IELTS Band Booster" learning app.
+
+Help with exam format, scoring concepts, skill-building tips, practice strategies, and explanations of Reading, Listening, Writing, and Speaking tasks.
+
+Keep answers focused and actionable. Prefer short paragraphs or bullet lists when helpful. Stay accurate about IELTS; avoid inventing official wording, dates, or quotas.
+
+If asked about unrelated topics, answer briefly only if trivial, otherwise steer back to IELTS preparation."""
+
+ASSISTANT_PERSONALIZATION_SUFFIX = """
+
+When a LEARNER_SNAPSHOT block is included below, you MUST:
+- Ground answers in their stated targets, diagnostic bands (if any), weakest micro-skills, and notes.
+- For band goals (e.g. reaching 7), name which skills/modules are furthest below that goal in *their* data and give concrete next steps for those gaps—not generic exam advice.
+- If diagnostic or practice data is missing, say what is missing and what they should do in the app next, instead of inventing scores.
+"""
+
+
+async def assistant_chat(messages: List[dict], learner_context: Optional[str] = None) -> str:
+    """Turn-based coach chat via the same OpenRouter model as generation features."""
+    system = ASSISTANT_SYSTEM
+    if learner_context and learner_context.strip():
+        system = (
+            ASSISTANT_SYSTEM
+            + ASSISTANT_PERSONALIZATION_SUFFIX
+            + "\n\n"
+            + learner_context.strip()
+        )
+    api_messages = [{"role": "system", "content": system}]
+    for m in messages:
+        api_messages.append({"role": m["role"], "content": m["content"]})
+
+    response = await _get_client().chat.completions.create(
+        model=MODEL,
+        messages=api_messages,
+        max_tokens=2000,
+        temperature=0.6,
+    )
+    text = response.choices[0].message.content
+    if not text or not str(text).strip():
+        raise ValueError("Empty response from model")
+    return str(text).strip()
+
+
 async def generate_diagnostic_reading_session(topic: Optional[str] = None, default_difficulty: str = "band6") -> dict:
     prompt = build_diagnostic_reading_prompt(topic, default_difficulty=default_difficulty)
     response = await _get_client().chat.completions.create(

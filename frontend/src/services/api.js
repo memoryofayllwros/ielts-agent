@@ -306,3 +306,11 @@ export async function fetchVocabHistory() {
 export async function fetchVocabResultDetail(resultId) {
   return request(`/vocab/result/${resultId}`);
 }
+
+/** @param {{ role: 'user' | 'assistant', content: string }[]} messages */
+export async function sendAssistantChat(messages) {
+  return request("/assistant/chat", {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+  });
+}

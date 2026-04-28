@@ -422,3 +422,35 @@ class LessonComprehensionSubmit(BaseModel):
 
 class LessonRoleplaySubmit(BaseModel):
     transcript: str = ""
+
+
+# ── Assistant chat (in-app IELTS coach) ───────────────────────────────────────
+
+class AssistantChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=8000)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def strip_content(cls, v: str) -> str:
+        if not isinstance(v, str):
+            raise TypeError("content must be a string")
+        s = v.strip()
+        if not s:
+            raise ValueError("message content cannot be empty")
+        return s
+
+
+class AssistantChatRequest(BaseModel):
+    messages: List[AssistantChatMessage] = Field(min_length=1, max_length=32)
+
+    @field_validator("messages", mode="after")
+    @classmethod
+    def last_from_user(cls, v: List[AssistantChatMessage]) -> List[AssistantChatMessage]:
+        if v[-1].role != "user":
+            raise ValueError("last message must be from the user")
+        return v
+
+
+class AssistantChatResponse(BaseModel):
+    message: str
