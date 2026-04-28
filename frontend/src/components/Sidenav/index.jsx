@@ -16,8 +16,8 @@ import { useMaterialUIController, setMiniSidenav } from "context";
 const DRAWER_WIDTH = 250;
 
 const ACTIVE_NAV = {
-  background: "linear-gradient(145deg, #0F766E 0%, #0D9488 55%, #14B8A6 100%)",
-  boxShadow: "0 4px 14px rgba(13, 148, 136, 0.35)",
+  background: "#F8F8F8",
+  boxShadow: "0 2px 10px rgba(15, 23, 42, 0.06)",
 };
 
 function Sidenav({ routes }) {
@@ -55,12 +55,13 @@ function Sidenav({ routes }) {
             height: 40,
             px: 1,
             borderRadius: "12px",
-            background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
+            border: "1px solid rgba(15, 23, 42, 0.1)",
+            background: "#F8F8F8",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(13, 148, 136, 0.35)",
-            color: "#fff",
+            boxShadow: "none",
+            color: "text.primary",
             fontSize: "0.6875rem",
             fontWeight: 800,
             letterSpacing: "0.06em",
@@ -103,8 +104,9 @@ function Sidenav({ routes }) {
                   minHeight: 46,
                   background: isActive ? ACTIVE_NAV.background : "transparent",
                   boxShadow: isActive ? ACTIVE_NAV.boxShadow : "none",
+                  border: isActive ? "1px solid rgba(15, 23, 42, 0.08)" : "1px solid transparent",
                   "&:hover": {
-                    background: isActive ? ACTIVE_NAV.background : "rgba(13, 148, 136, 0.08)",
+                    background: isActive ? ACTIVE_NAV.background : "rgba(15, 23, 42, 0.04)",
                   },
                   transition: "background 0.2s, box-shadow 0.2s",
                 }}
@@ -112,7 +114,7 @@ function Sidenav({ routes }) {
                 <ListItemIcon
                   sx={{
                     minWidth: miniSidenav ? 0 : 38,
-                    color: isActive ? "#fff" : "text.secondary",
+                    color: isActive ? "primary.main" : "text.secondary",
                     justifyContent: "center",
                   }}
                 >
@@ -124,7 +126,6 @@ function Sidenav({ routes }) {
                     primaryTypographyProps={{
                       fontSize: "0.9rem",
                       fontWeight: isActive ? 600 : 500,
-                      color: isActive ? "#fff" : "text.primary",
                     }}
                   />
                 )}

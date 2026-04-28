@@ -21,16 +21,21 @@ export default function PracticeHub() {
           mb: 3,
           borderRadius: 2,
           overflow: "hidden",
-          background: (t) =>
-            `linear-gradient(125deg, ${t.palette.primary.dark} 0%, ${t.palette.primary.main} 48%, #2DD4BF 100%)`,
-          color: "#fff",
-          boxShadow: "0 8px 32px rgba(13, 148, 136, 0.35)",
+          background:
+            "linear-gradient(125deg, #F8F8F8 0%, #f4f4f4 48%, #ececec 100%)",
+          color: "text.primary",
+          boxShadow: "0 8px 32px rgba(15, 23, 42, 0.08)",
         }}
       >
         <CardContent sx={{ p: { xs: 2.25, sm: 2.75, md: 3.5 } }}>
           <Typography
             variant="overline"
-            sx={{ opacity: 0.95, letterSpacing: { xs: "0.1em", sm: "0.12em" }, fontWeight: 800, lineHeight: 1.2 }}
+            sx={{
+              color: "text.secondary",
+              letterSpacing: { xs: "0.1em", sm: "0.12em" },
+              fontWeight: 800,
+              lineHeight: 1.2,
+            }}
           >
             Practice
           </Typography>
@@ -53,7 +58,7 @@ export default function PracticeHub() {
             sx={{
               mt: { xs: 1, sm: 1.25 },
               m: 0,
-              opacity: 0.95,
+              color: "text.secondary",
               maxWidth: "min(100%, 52ch)",
               lineHeight: 1.6,
               overflowWrap: "anywhere",
@@ -166,7 +171,7 @@ export default function PracticeHub() {
                   borderColor: s.border,
                   background: s.tint,
                   transition: "transform 0.2s ease-out, box-shadow 0.2s ease-out",
-                  WebkitTapHighlightColor: "rgba(13, 148, 136, 0.1)",
+                  WebkitTapHighlightColor: "rgba(15, 23, 42, 0.08)",
                   "@media (prefers-reduced-motion: reduce)": {
                     transition: "none",
                   },

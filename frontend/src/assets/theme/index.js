@@ -1,30 +1,30 @@
 import { createTheme } from "@mui/material/styles";
 
-/** Calm teal + warm neutrals — readable, exam-prep friendly (not generic “admin dashboard” blue). */
+/** Demo-neutral palette: #F8F8F8 surfaces; charcoal primary (replaces former slate / “dark green-grey”). */
 const theme = createTheme({
   palette: {
     primary: {
-      main: "#0D9488",
-      light: "#2DD4BF",
-      dark: "#0F766E",
+      main: "#404040",
+      light: "#6b7280",
+      dark: "#2d2d2d",
       contrastText: "#fff",
     },
     secondary: {
-      main: "#64748B",
-      light: "#94A3B8",
-      dark: "#475569",
+      main: "#525252",
+      light: "#787878",
+      dark: "#3d3d3d",
       contrastText: "#fff",
     },
     info: {
-      main: "#0D9488",
-      light: "#2DD4BF",
-      dark: "#115E59",
+      main: "#404040",
+      light: "#6b7280",
+      dark: "#2d2d2d",
       contrastText: "#fff",
     },
     success: {
-      main: "#059669",
-      light: "#34D399",
-      dark: "#047857",
+      main: "#16a34a",
+      light: "#4ade80",
+      dark: "#15803d",
       contrastText: "#fff",
     },
     warning: {
@@ -40,7 +40,7 @@ const theme = createTheme({
       contrastText: "#fff",
     },
     background: {
-      default: "#F4F2EE",
+      default: "#F8F8F8",
       paper: "#FFFFFF",
     },
     text: {
@@ -97,7 +97,7 @@ const theme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          backgroundColor: "#F4F2EE",
+          backgroundColor: "#F8F8F8",
         },
       },
     },
@@ -124,7 +124,7 @@ const theme = createTheme({
         containedPrimary: {
           boxShadow: "none",
           "&:hover": {
-            boxShadow: "0 4px 14px rgba(13, 148, 136, 0.35)",
+            boxShadow: "0 4px 14px rgba(15, 23, 42, 0.12)",
           },
         },
       },

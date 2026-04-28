@@ -35,7 +35,7 @@ import {
 
 const LEVEL_COLOR = {
   A2: { bg: "#e3f2fd", text: "#1565c0", border: "#90caf9" },
-  B1: { bg: "#e8f5e9", text: "#2e7d32", border: "#a5d6a7" },
+  B1: { bg: "#f1f5f9", text: "#475569", border: "#cbd5e1" },
   B2: { bg: "#fff8e1", text: "#e65100", border: "#ffcc80" },
   C1: { bg: "#fce4ec", text: "#880e4f", border: "#f48fb1" },
   C2: { bg: "#f3e5f5", text: "#4a148c", border: "#ce93d8" },
@@ -267,12 +267,12 @@ function ReviewPanel({ resultId, onBack }) {
             <Box key={r.question_id} sx={{
               mb: 2, p: 2,
               borderRadius: "10px",
-              background: r.is_correct ? "#f1f8f1" : "#fff5f5",
-              border: `1px solid ${r.is_correct ? "#c8e6c9" : "#ffcdd2"}`,
+              background: r.is_correct ? "#f4f6f8" : "#fff5f5",
+              border: `1px solid ${r.is_correct ? "#e2e8f0" : "#ffcdd2"}`,
             }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                 {r.is_correct
-                  ? <CheckCircleIcon sx={{ color: "#4CAF50", fontSize: "1.1rem" }} />
+                  ? <CheckCircleIcon sx={{ color: "#64748b", fontSize: "1.1rem" }} />
                   : <CancelIcon sx={{ color: "#F44335", fontSize: "1.1rem" }} />}
                 <Typography variant="subtitle2" fontWeight={700}>{i + 1}. {r.word}</Typography>
                 <LevelChip level={r.level} />
@@ -293,9 +293,9 @@ function ReviewPanel({ resultId, onBack }) {
                       sx={{
                         borderRadius: "6px",
                         fontWeight: isCorrect ? 700 : 400,
-                        background: isCorrect ? "#e8f5e9" : isUser ? "#ffebee" : "#f0f2f5",
-                        color: isCorrect ? "#2e7d32" : isUser ? "#c62828" : "text.secondary",
-                        border: `1px solid ${isCorrect ? "#a5d6a7" : isUser ? "#ef9a9a" : "transparent"}`,
+                        background: isCorrect ? "#eef0f4" : isUser ? "#ffebee" : "#f0f2f5",
+                        color: isCorrect ? "#475569" : isUser ? "#c62828" : "text.secondary",
+                        border: `1px solid ${isCorrect ? "#cbd5e1" : isUser ? "#ef9a9a" : "transparent"}`,
                       }}
                     />
                   );
@@ -417,10 +417,11 @@ export default function VocabTestPage() {
               <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
                 <Box sx={{
                   width: 56, height: 56, borderRadius: "14px",
-                  background: (t) => `linear-gradient(135deg, ${t.palette.primary.dark}, ${t.palette.primary.main})`,
+                  border: "1px solid rgba(15, 23, 42, 0.1)",
+                  background: "#F8F8F8",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <SpellcheckIcon sx={{ color: "#fff", fontSize: "1.75rem" }} />
+                  <SpellcheckIcon sx={{ color: "primary.main", fontSize: "1.75rem" }} />
                 </Box>
                 <Box>
                   <Typography variant="h5" fontWeight={800}>Vocabulary Level Test</Typography>
@@ -570,8 +571,8 @@ export default function VocabTestPage() {
 
                 if (isAnswered && isChosen && !showFeedback) {
                   // Already answered, not in feedback window — dim chosen
-                  bg = "rgba(13, 148, 136, 0.12)";
-                  border = "1px solid rgba(13, 148, 136, 0.35)";
+                  bg = "rgba(15, 23, 42, 0.12)";
+                  border = "1px solid rgba(15, 23, 42, 0.35)";
                 }
                 if (showFeedback && isChosen) {
                   // Brief flash
@@ -598,7 +599,7 @@ export default function VocabTestPage() {
                       color,
                       fontWeight: 500,
                       fontSize: "0.95rem",
-                      "&:hover": { background: answered ? bg : "rgba(13, 148, 136, 0.08)", border: answered ? border : "1px solid rgba(13, 148, 136, 0.35)" },
+                      "&:hover": { background: answered ? bg : "rgba(15, 23, 42, 0.08)", border: answered ? border : "1px solid rgba(15, 23, 42, 0.35)" },
                     }}
                   >
                     {opt}
@@ -632,7 +633,7 @@ export default function VocabTestPage() {
                     bgcolor: answers[q.id]
                       ? "primary.main"
                       : i === currentIdx
-                        ? "rgba(13, 148, 136, 0.18)"
+                        ? "rgba(15, 23, 42, 0.18)"
                         : "grey.200",
                     border: i === currentIdx ? "2px solid" : "2px solid transparent",
                     borderColor: i === currentIdx ? "primary.main" : "transparent",
@@ -747,7 +748,7 @@ export default function VocabTestPage() {
                       <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic", mb: 0.5 }}>
                         {r.sentence}
                       </Typography>
-                      <Typography variant="body2" sx={{ color: "#2e7d32", fontWeight: 500 }}>
+                      <Typography variant="body2" sx={{ color: "#475569", fontWeight: 500 }}>
                         ✓ {r.options?.find((o) => o.startsWith(r.correct_answer)) || r.correct_answer}
                       </Typography>
                       {r.explanation && (

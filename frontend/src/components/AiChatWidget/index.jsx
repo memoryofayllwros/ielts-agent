@@ -100,16 +100,17 @@ export default function AiChatWidget() {
               alignItems: "center",
               justifyContent: "space-between",
               gap: 1,
-              background: "linear-gradient(145deg, #0F766E 0%, #0D9488 55%, #14B8A6 100%)",
-              color: "primary.contrastText",
-              boxShadow: "0 4px 14px rgba(13, 148, 136, 0.25)",
+              background: "#F8F8F8",
+              color: "text.primary",
+              borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
+              boxShadow: "none",
             }}
           >
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
                 IELTS coach
               </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.92, fontWeight: 500 }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 500 }}>
                 Ask about skills, strategy, or this app
               </Typography>
             </Box>
@@ -118,9 +119,9 @@ export default function AiChatWidget() {
               onClick={() => setOpen(false)}
               aria-label="Close chat"
               sx={{
-                color: "inherit",
-                bgcolor: alpha("#fff", 0.15),
-                "&:hover": { bgcolor: alpha("#fff", 0.25) },
+                color: "text.primary",
+                bgcolor: "rgba(15, 23, 42, 0.06)",
+                "&:hover": { bgcolor: "rgba(15, 23, 42, 0.1)" },
               }}
             >
               <CloseRoundedIcon fontSize="small" />
@@ -135,9 +136,9 @@ export default function AiChatWidget() {
               overflowY: "auto",
               px: 2,
               py: 2,
-              bgcolor: alpha("#0D9488", 0.03),
+              bgcolor: alpha("#404040", 0.03),
               backgroundImage:
-                "radial-gradient(circle at 20% 10%, rgba(13, 148, 136, 0.06) 0%, transparent 45%)",
+                "radial-gradient(circle at 20% 10%, rgba(15, 23, 42, 0.04) 0%, transparent 45%)",
             }}
           >
             {messages.length === 0 && (
@@ -164,9 +165,10 @@ export default function AiChatWidget() {
                       borderRadius: 2,
                       ...(m.role === "user"
                         ? {
-                            background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
-                            color: "#fff",
-                            boxShadow: "0 4px 12px rgba(13, 148, 136, 0.28)",
+                            background: "#F8F8F8",
+                            color: "text.primary",
+                            border: "1px solid rgba(15, 23, 42, 0.1)",
+                            boxShadow: "0 2px 8px rgba(15, 23, 42, 0.06)",
                           }
                         : {
                             bgcolor: "background.paper",
@@ -181,7 +183,7 @@ export default function AiChatWidget() {
                         whiteSpace: "pre-wrap",
                         wordBreak: "break-word",
                         lineHeight: 1.65,
-                        ...(m.role === "user" ? { color: "#fff" } : { color: "text.primary" }),
+                        color: "text.primary",
                       }}
                     >
                       {m.content}
@@ -242,8 +244,8 @@ export default function AiChatWidget() {
                 aria-label="Send message"
                 sx={{
                   mb: 0.25,
-                  bgcolor: alpha("#0D9488", 0.12),
-                  "&:hover": { bgcolor: alpha("#0D9488", 0.2) },
+                  bgcolor: alpha("#404040", 0.12),
+                  "&:hover": { bgcolor: alpha("#404040", 0.2) },
                   "&.Mui-disabled": { bgcolor: alpha("#64748B", 0.08) },
                 }}
               >
@@ -263,9 +265,9 @@ export default function AiChatWidget() {
             setError(null);
           }}
           sx={{
-            boxShadow: "0 8px 24px rgba(13, 148, 136, 0.45)",
+            boxShadow: "0 8px 24px rgba(15, 23, 42, 0.15)",
             "&:hover": {
-              boxShadow: "0 10px 28px rgba(13, 148, 136, 0.5)",
+              boxShadow: "0 10px 28px rgba(15, 23, 42, 0.18)",
             },
           }}
         >

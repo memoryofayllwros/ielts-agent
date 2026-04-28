@@ -123,15 +123,18 @@ app.add_middleware(
 )
 
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+FRONTEND_DIST_ASSETS = FRONTEND_DIST / "assets"
 
-if FRONTEND_DIST.exists():
-    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+# dist/ may exist without assets/ after a partial build; StaticFiles requires the folder.
+if FRONTEND_DIST_ASSETS.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST_ASSETS)), name="assets")
 
 
 @app.get("/")
 async def index():
-    if FRONTEND_DIST.exists():
-        return FileResponse(str(FRONTEND_DIST / "index.html"))
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.is_file():
+        return FileResponse(str(index_path))
     return {"message": "Frontend not built. Run: cd frontend && npm install && npm run build"}
 
 

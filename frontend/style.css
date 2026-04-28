@@ -5,8 +5,8 @@
   --blue: #2563eb;
   --blue-light: #eff6ff;
   --blue-dark: #1d4ed8;
-  --green: #16a34a;
-  --green-light: #f0fdf4;
+  --green: #64748b;
+  --green-light: #f1f5f9;
   --red: #dc2626;
   --red-light: #fef2f2;
   --orange: #ea580c;
@@ -468,8 +468,8 @@ section { display: flex; flex-direction: column; gap: 20px; }
   font-weight: 500;
 }
 
-.answer-chip.correct-answer { background: var(--green-light); color: var(--green); border: 1px solid #bbf7d0; }
-.answer-chip.user-correct { background: var(--green-light); color: var(--green); border: 1px solid #bbf7d0; }
+.answer-chip.correct-answer { background: var(--green-light); color: var(--green); border: 1px solid #cbd5e1; }
+.answer-chip.user-correct { background: var(--green-light); color: var(--green); border: 1px solid #cbd5e1; }
 .answer-chip.user-wrong { background: var(--red-light); color: var(--red); border: 1px solid #fecaca; }
 
 .result-explanation {

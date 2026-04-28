@@ -47,15 +47,15 @@ export function FillInBlanksQuestion({ question, answers, onAnswer, submitted, r
                       px: 1.5,
                       py: 0.25,
                       borderRadius: "6px",
-                      background: isCorrect ? "#e8f5e9" : "#ffebee",
-                      color: isCorrect ? "#2e7d32" : "#c62828",
+                      background: isCorrect ? "#eef0f4" : "#ffebee",
+                      color: isCorrect ? "#475569" : "#c62828",
                       fontWeight: 600,
-                      border: `1px solid ${isCorrect ? "#a5d6a7" : "#ef9a9a"}`,
+                      border: `1px solid ${isCorrect ? "#cbd5e1" : "#ef9a9a"}`,
                     }}
                   >
                     {userVal || <em style={{ opacity: 0.5 }}>empty</em>}
                     {!isCorrect && (
-                      <Typography component="span" variant="caption" sx={{ ml: 0.75, color: "#2e7d32", fontWeight: 500 }}>
+                      <Typography component="span" variant="caption" sx={{ ml: 0.75, color: "#475569", fontWeight: 500 }}>
                         → {correctVal}
                       </Typography>
                     )}
@@ -121,7 +121,7 @@ export function McSingleQuestion({ question, answers, onAnswer, submitted, resul
           const isSelected = userAns === key;
           let bgColor = "transparent";
           if (submitted) {
-            if (isCorrect) bgColor = "#e8f5e9";
+            if (isCorrect) bgColor = "#eef0f4";
             else if (isSelected && !isCorrect) bgColor = "#ffebee";
           }
           return (
@@ -132,7 +132,7 @@ export function McSingleQuestion({ question, answers, onAnswer, submitted, resul
               label={
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                   <span>{opt}</span>
-                  {submitted && isCorrect && <CheckCircleIcon sx={{ color: "#4CAF50", fontSize: "1rem" }} />}
+                  {submitted && isCorrect && <CheckCircleIcon sx={{ color: "#64748b", fontSize: "1rem" }} />}
                   {submitted && isSelected && !isCorrect && <CancelIcon sx={{ color: "#F44335", fontSize: "1rem" }} />}
                 </Box>
               }
@@ -170,7 +170,7 @@ export function McMultipleQuestion({ question, answers, onAnswer, submitted, res
           const isSelected = userSet.has(key);
           let bgColor = "transparent";
           if (submitted) {
-            if (isCorrect) bgColor = "#e8f5e9";
+            if (isCorrect) bgColor = "#eef0f4";
             else if (isSelected && !isCorrect) bgColor = "#ffebee";
           }
           return (
@@ -180,7 +180,7 @@ export function McMultipleQuestion({ question, answers, onAnswer, submitted, res
               label={
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                   <span>{opt}</span>
-                  {submitted && isCorrect && <CheckCircleIcon sx={{ color: "#4CAF50", fontSize: "1rem" }} />}
+                  {submitted && isCorrect && <CheckCircleIcon sx={{ color: "#64748b", fontSize: "1rem" }} />}
                   {submitted && isSelected && !isCorrect && <CancelIcon sx={{ color: "#F44335", fontSize: "1rem" }} />}
                 </Box>
               }
@@ -246,7 +246,7 @@ export function QuestionCard({ question, index, answers, onAnswer, submitted, re
 }
 
 export function ScoreCircle({ percentage }) {
-  const color = percentage >= 70 ? "#4CAF50" : percentage >= 40 ? "#FB8C00" : "#F44335";
+  const color = percentage >= 70 ? "#64748b" : percentage >= 40 ? "#FB8C00" : "#F44335";
   return (
     <Box
       sx={{

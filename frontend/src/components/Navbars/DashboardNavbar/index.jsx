@@ -109,9 +109,9 @@ function DashboardNavbar({ title }) {
                   fontSize: "0.8rem",
                   borderRadius: "10px",
                   border: "1px solid",
-                  borderColor: "rgba(13, 148, 136, 0.25)",
+                  borderColor: "rgba(15, 23, 42, 0.25)",
                   color: "text.primary",
-                  backgroundColor: "rgba(13, 148, 136, 0.06)",
+                  backgroundColor: "rgba(15, 23, 42, 0.06)",
                   px: 1.5,
                   py: 0.5,
                   textTransform: "none",
@@ -230,7 +230,7 @@ function DashboardNavbar({ title }) {
               fontSize: "0.8rem",
               borderColor: "divider",
               color: "text.secondary",
-              "&:hover": { borderColor: "primary.main", color: "primary.dark", bgcolor: "rgba(13, 148, 136, 0.06)" },
+              "&:hover": { borderColor: "primary.main", color: "primary.dark", bgcolor: "rgba(15, 23, 42, 0.06)" },
             }}
           >
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>

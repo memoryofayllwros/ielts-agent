@@ -64,7 +64,7 @@ export default function AuthPage() {
     <Box
       sx={{
         minHeight: "100vh",
-        background: "linear-gradient(155deg, #0F766E 0%, #115E59 38%, #134E4A 100%)",
+        background: "linear-gradient(155deg, #F8F8F8 0%, #f0f0f0 52%, #eaeaea 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -75,7 +75,7 @@ export default function AuthPage() {
           content: '""',
           position: "absolute",
           inset: 0,
-          background: "radial-gradient(ellipse 80% 50% at 100% 0%, rgba(45, 212, 191, 0.25) 0%, transparent 55%)",
+          background: "radial-gradient(ellipse 80% 50% at 100% 0%, rgba(139, 149, 163, 0.22) 0%, transparent 55%)",
           pointerEvents: "none",
         },
       }}
@@ -99,17 +99,18 @@ export default function AuthPage() {
                 height: 44,
                 px: 1.75,
                 borderRadius: "14px",
-                background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
+                border: "1px solid rgba(15, 23, 42, 0.1)",
+                background: "#F8F8F8",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 mb: 1.5,
-                color: "#fff",
+                color: "text.primary",
                 fontSize: "0.8125rem",
                 fontWeight: 800,
                 letterSpacing: "0.07em",
                 fontFamily: '"Source Sans 3", system-ui, sans-serif',
-                boxShadow: "0 8px 24px rgba(13, 148, 136, 0.4)",
+                boxShadow: "none",
               }}
             >
               IELTS

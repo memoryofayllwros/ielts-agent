@@ -39,6 +39,23 @@ function startPracticeQuery(focusSkill) {
 
 const textBreak = { overflowWrap: "anywhere", wordBreak: "break-word" };
 
+/** Light grey demo palette (self-contained; not tied to theme primary). */
+const nbp = {
+  bgTop: "#F8F8F8",
+  bgBottom: "#F0F0F0",
+  border: "rgba(15, 23, 42, 0.1)",
+  overline: "#64748b",
+  text: "#0f172a",
+  muted: "#475569",
+  faint: "rgba(15, 23, 42, 0.45)",
+  divider: "rgba(15, 23, 42, 0.08)",
+  button: "#525f6b",
+  buttonHover: "#3d4650",
+  link: "#334155",
+  surfaceHover: "rgba(15, 23, 42, 0.04)",
+  cardShadow: "0 8px 24px rgba(15, 23, 42, 0.06)",
+};
+
 /**
  * Fetches planner recommendation and surfaces a clear next action for the learning loop.
  * @param {object} props
@@ -103,10 +120,10 @@ export default function NextBestPracticeCard({ module = "reading" }) {
       sx={{
         borderRadius: 2,
         border: "1px solid",
-        borderColor: "divider",
-        bgcolor: "background.paper",
-        background: (t) => `linear-gradient(180deg, ${t.palette.grey[50]} 0%, ${t.palette.background.paper} 100%)`,
-        boxShadow: "none",
+        borderColor: nbp.border,
+        bgcolor: nbp.bgBottom,
+        background: `linear-gradient(180deg, ${nbp.bgTop} 0%, ${nbp.bgBottom} 100%)`,
+        boxShadow: nbp.cardShadow,
       }}
     >
       <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
@@ -114,9 +131,8 @@ export default function NextBestPracticeCard({ module = "reading" }) {
           <Typography
             component="h2"
             variant="overline"
-            color="primary"
             fontWeight={800}
-            sx={{ letterSpacing: "0.1em", lineHeight: 1.2, display: "block", mb: 1.5 }}
+            sx={{ letterSpacing: "0.1em", lineHeight: 1.2, display: "block", mb: 1.5, color: nbp.overline }}
           >
             Next up · {moduleLabel(module)}
           </Typography>
@@ -128,8 +144,8 @@ export default function NextBestPracticeCard({ module = "reading" }) {
               aria-live="polite"
               aria-label="Loading practice recommendation"
             >
-              <CircularProgress size={22} aria-hidden />
-              <Typography variant="body2" color="text.secondary">
+              <CircularProgress size={22} aria-hidden sx={{ color: nbp.overline }} />
+              <Typography variant="body2" sx={{ color: nbp.muted }}>
                 Loading…
               </Typography>
             </Box>
@@ -137,14 +153,20 @@ export default function NextBestPracticeCard({ module = "reading" }) {
 
           {err && !loading ? (
             <Stack spacing={1.5}>
-              <Typography variant="body2" color="warning.dark" sx={{ ...textBreak, fontWeight: 600 }}>
+              <Typography variant="body2" sx={{ ...textBreak, fontWeight: 600, color: "#9a3412" }}>
                 {err}
               </Typography>
               <Button
                 size="small"
                 variant="outlined"
                 onClick={() => load()}
-                sx={{ fontWeight: 700, alignSelf: "flex-start" }}
+                sx={{
+                  fontWeight: 700,
+                  alignSelf: "flex-start",
+                  color: nbp.link,
+                  borderColor: nbp.border,
+                  "&:hover": { borderColor: nbp.overline, bgcolor: nbp.surfaceHover },
+                }}
               >
                 Retry
               </Button>
@@ -153,7 +175,13 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                 component={Link}
                 to={`/learning/skill-map?module=${encodeURIComponent(module)}`}
                 variant="outlined"
-                sx={{ borderRadius: "10px", fontWeight: 600 }}
+                sx={{
+                  borderRadius: "10px",
+                  fontWeight: 600,
+                  color: nbp.link,
+                  borderColor: nbp.border,
+                  "&:hover": { borderColor: nbp.overline, bgcolor: nbp.surfaceHover },
+                }}
               >
                 Open skill map
               </Button>
@@ -167,23 +195,21 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                   <Typography
                     component="h3"
                     variant="h6"
-                    color="text.primary"
                     fontWeight={800}
-                    sx={{ lineHeight: 1.3, letterSpacing: "-0.02em", ...textBreak }}
+                    sx={{ color: nbp.text, lineHeight: 1.3, letterSpacing: "-0.02em", ...textBreak }}
                   >
                     {focusLabel}
                   </Typography>
                   {desc ? (
                     <Typography
                       variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 0.5, lineHeight: 1.55, ...textBreak }}
+                      sx={{ mt: 0.5, lineHeight: 1.55, ...textBreak, color: nbp.muted }}
                     >
                       {desc}
                     </Typography>
                   ) : null}
                   {extraBullets.length > 0 && (
-                    <Box component="ul" sx={{ m: 0, mt: 1, pl: 2, color: "text.secondary" }}>
+                    <Box component="ul" sx={{ m: 0, mt: 1, pl: 2, color: nbp.muted }}>
                       {extraBullets.map((b, bi) => (
                         <li key={`${bi}-${String(b).slice(0, 64)}`}>
                           <Typography variant="body2" component="span" sx={{ lineHeight: 1.55, ...textBreak }}>
@@ -199,7 +225,7 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                   component="h3"
                   variant="subtitle1"
                   fontWeight={800}
-                  sx={{ color: "text.primary", lineHeight: 1.3, letterSpacing: "-0.01em", ...textBreak }}
+                  sx={{ color: nbp.text, lineHeight: 1.3, letterSpacing: "-0.01em", ...textBreak }}
                 >
                   {data.message || "A few more sessions, then we can suggest a focus."}
                 </Typography>
@@ -207,9 +233,9 @@ export default function NextBestPracticeCard({ module = "reading" }) {
 
               {data.reason ? (
                 <>
-                  <Divider sx={{ my: 1.75, borderColor: "divider" }} />
-                  <Typography variant="body2" color="text.secondary" component="p" sx={{ m: 0, lineHeight: 1.6, ...textBreak }}>
-                    <Box component="span" sx={{ color: "text.disabled", fontWeight: 600 }}>
+                  <Divider sx={{ my: 1.75, borderColor: nbp.divider }} />
+                  <Typography variant="body2" component="p" sx={{ m: 0, lineHeight: 1.6, ...textBreak, color: nbp.muted }}>
+                    <Box component="span" sx={{ color: nbp.faint, fontWeight: 600 }}>
                       Why this{" "}
                     </Box>
                     {data.reason}
@@ -219,13 +245,12 @@ export default function NextBestPracticeCard({ module = "reading" }) {
 
               {planLine ? (
                 <>
-                  <Divider sx={{ my: 1.75, borderColor: "divider" }} />
+                  <Divider sx={{ my: 1.75, borderColor: nbp.divider }} />
                   <Typography
                     variant="body2"
-                    color="text.primary"
                     fontWeight={600}
                     component="p"
-                    sx={{ m: 0, lineHeight: 1.5, ...textBreak }}
+                    sx={{ m: 0, lineHeight: 1.5, ...textBreak, color: nbp.text }}
                   >
                     {planLine}
                   </Typography>
@@ -238,7 +263,16 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                   fullWidth
                   onClick={onStart}
                   size="large"
-                  sx={{ borderRadius: "10px", fontWeight: 800, py: 1.25, touchAction: "manipulation" }}
+                  sx={{
+                    borderRadius: "10px",
+                    fontWeight: 800,
+                    py: 1.25,
+                    touchAction: "manipulation",
+                    bgcolor: nbp.button,
+                    color: "#fafafa",
+                    boxShadow: "0 4px 14px rgba(15, 23, 42, 0.12)",
+                    "&:hover": { bgcolor: nbp.buttonHover },
+                  }}
                 >
                   Start this practice
                 </Button>
@@ -248,7 +282,11 @@ export default function NextBestPracticeCard({ module = "reading" }) {
                   to={`/learning/skill-map?module=${encodeURIComponent(module)}`}
                   variant="text"
                   size="small"
-                  sx={{ fontWeight: 600, color: "text.secondary" }}
+                  sx={{
+                    fontWeight: 600,
+                    color: nbp.link,
+                    "&:hover": { bgcolor: nbp.surfaceHover },
+                  }}
                 >
                   See it on the skill map
                 </Button>

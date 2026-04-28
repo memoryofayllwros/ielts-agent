@@ -214,9 +214,9 @@ const LegendBar = memo(function LegendBar() {
         py: { xs: 1.75, sm: 1.5 },
         px: { xs: 1.5, sm: 2 },
         borderRadius: 2,
-        bgcolor: "rgba(13, 148, 136, 0.06)",
+        bgcolor: "rgba(15, 23, 42, 0.06)",
         border: "1px dashed",
-        borderColor: "rgba(13, 148, 136, 0.25)",
+        borderColor: "rgba(15, 23, 42, 0.25)",
       }}
     >
       <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ width: "100%", sm: { width: "auto" } }}>
@@ -298,12 +298,12 @@ const FourPaperSelector = memo(function FourPaperSelector({ module, overview, on
                   minHeight: { xs: 96, sm: 0 },
                   border: 2,
                   borderColor: selected ? "primary.main" : "transparent",
-                  bgcolor: selected ? "rgba(13, 148, 136, 0.08)" : "background.paper",
+                  bgcolor: selected ? "rgba(15, 23, 42, 0.08)" : "background.paper",
                   borderRadius: 2,
                   touchAction: "manipulation",
-                  WebkitTapHighlightColor: "rgba(13, 148, 136, 0.12)",
+                  WebkitTapHighlightColor: "rgba(15, 23, 42, 0.12)",
                   transition: "transform 0.15s ease-out, box-shadow 0.15s ease-out",
-                  boxShadow: selected ? "0 4px 20px rgba(13, 148, 136, 0.15)" : 1,
+                  boxShadow: selected ? "0 4px 20px rgba(15, 23, 42, 0.15)" : 1,
                   "@media (hover: hover)": {
                     "&:hover": {
                       boxShadow: 3,
@@ -427,8 +427,8 @@ const NextStepPanel = memo(function NextStepPanel({ module, nextStep, onPractice
         borderRadius: 2,
         bgcolor: "background.paper",
         border: "1px solid",
-        borderColor: "rgba(13, 148, 136, 0.28)",
-        background: "linear-gradient(180deg, rgba(13, 148, 136, 0.06) 0%, #fff 40%)",
+        borderColor: "rgba(15, 23, 42, 0.28)",
+        background: "linear-gradient(180deg, rgba(15, 23, 42, 0.06) 0%, #fff 40%)",
         position: { md: "sticky" },
         top: { md: 88 },
       }}
@@ -785,13 +785,13 @@ export default function SkillMapPage() {
           mb: 3,
           borderRadius: 2,
           overflow: "hidden",
-          background: (t) =>
-            `linear-gradient(135deg, ${t.palette.primary.dark} 0%, ${t.palette.primary.main} 45%, #2DD4BF 100%)`,
-          color: "#fff",
+          background:
+            `linear-gradient(135deg, #F8F8F8 0%, #f2f2f2 42%, #ebebeb 100%)`,
+          color: "text.primary",
         }}
       >
         <CardContent sx={{ p: { xs: 2.25, sm: 2.75, md: 3.5 } }}>
-          <Typography variant="overline" sx={{ opacity: 0.95, fontWeight: 800, letterSpacing: { xs: "0.1em", sm: "0.14em" } }}>
+          <Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 800, letterSpacing: { xs: "0.1em", sm: "0.14em" } }}>
             At a glance
           </Typography>
           <Typography
@@ -811,7 +811,7 @@ export default function SkillMapPage() {
             variant="body1"
             sx={{
               mt: { xs: 1, sm: 1.25 },
-              opacity: 0.95,
+              color: "text.secondary",
               maxWidth: 560,
               lineHeight: 1.55,
               fontSize: { xs: "0.9375rem", sm: "1rem" },
