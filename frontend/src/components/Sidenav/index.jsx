@@ -51,8 +51,9 @@ function Sidenav({ routes }) {
       >
         <Box
           sx={{
-            width: 40,
+            minWidth: 52,
             height: 40,
+            px: 1,
             borderRadius: "12px",
             background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
             display: "flex",
@@ -60,12 +61,13 @@ function Sidenav({ routes }) {
             justifyContent: "center",
             boxShadow: "0 4px 12px rgba(13, 148, 136, 0.35)",
             color: "#fff",
-            fontSize: "1.35rem",
-            fontWeight: 700,
-            fontFamily: '"Source Serif 4", Georgia, serif',
+            fontSize: "0.6875rem",
+            fontWeight: 800,
+            letterSpacing: "0.06em",
+            fontFamily: '"Source Sans 3", system-ui, sans-serif',
           }}
         >
-          IB
+          IELTS
         </Box>
         {!miniSidenav && (
           <Typography variant="h6" sx={{ fontWeight: 700, color: "text.primary", lineHeight: 1.25 }}>

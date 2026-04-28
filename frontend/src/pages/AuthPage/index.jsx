@@ -95,8 +95,9 @@ export default function AuthPage() {
           <Box sx={{ textAlign: "center", mb: 3 }}>
             <Box
               sx={{
-                width: 56,
-                height: 56,
+                minWidth: 72,
+                height: 44,
+                px: 1.75,
                 borderRadius: "14px",
                 background: "linear-gradient(145deg, #0F766E 0%, #0D9488 100%)",
                 display: "inline-flex",
@@ -104,13 +105,14 @@ export default function AuthPage() {
                 justifyContent: "center",
                 mb: 1.5,
                 color: "#fff",
-                fontSize: "1.5rem",
-                fontWeight: 700,
-                fontFamily: '"Source Serif 4", Georgia, serif',
+                fontSize: "0.8125rem",
+                fontWeight: 800,
+                letterSpacing: "0.07em",
+                fontFamily: '"Source Sans 3", system-ui, sans-serif',
                 boxShadow: "0 8px 24px rgba(13, 148, 136, 0.4)",
               }}
             >
-              IB
+              IELTS
             </Box>
             <Typography variant="h5" fontWeight={700} color="text.primary">
               IELTS Band Booster
